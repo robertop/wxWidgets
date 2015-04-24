@@ -191,10 +191,9 @@ public:
     enum { WAIT_DURATION = 3 };
 
     EventHandler(int types = wxFSW_EVENT_ALL) :
-        eg(EventGenerator::Get()), m_loop(0), m_count(0), m_watcher(0),
+        eg(EventGenerator::Get()), m_count(0), m_watcher(0),
         m_eventTypes(types)
     {
-        m_loop = new wxEventLoop();
         Connect(wxEVT_IDLE, wxIdleEventHandler(EventHandler::OnIdle));
         Connect(wxEVT_FSWATCHER, wxFileSystemWatcherEventHandler(
                                             EventHandler::OnFileSystemEvent));
@@ -203,17 +202,11 @@ public:
     virtual ~EventHandler()
     {
         delete m_watcher;
-        if (m_loop)
-        {
-            if (m_loop->IsRunning())
-                m_loop->Exit();
-            delete m_loop;
-        }
     }
 
     void Exit()
     {
-        m_loop->Exit();
+        wxEventLoopBase::GetActive()->Exit();
     }
 
     // sends idle event, so we get called in a moment
@@ -226,7 +219,6 @@ public:
     void Run()
     {
         SendIdle();
-        m_loop->Run();
     }
 
     void OnIdle(wxIdleEvent& /*evt*/)
@@ -386,7 +378,6 @@ public:
 
 protected:
     EventGenerator& eg;
-    wxEventLoopBase* m_loop;    // loop reference
     int m_count;                // idle events count
 
     wxFileSystemWatcher* m_watcher;
@@ -411,9 +402,6 @@ public:
 
     virtual void setUp();
     virtual void tearDown();
-
-protected:
-    wxEventLoopBase* m_loop;
 
 private:
     CPPUNIT_TEST_SUITE( FileSystemWatcherTestCase );
@@ -459,15 +447,9 @@ private:
     wxDECLARE_NO_COPY_CLASS(FileSystemWatcherTestCase);
 };
 
-// the test currently hangs under OS X for some reason and this prevents tests
-// ran by buildbot from completing so disable it until someone has time to
-// debug it
-//
-// FIXME: debug and fix this!
-#ifndef __WXOSX__
 // register in the unnamed registry so that these tests are run by default
 CPPUNIT_TEST_SUITE_REGISTRATION( FileSystemWatcherTestCase );
-#endif
+
 
 // also include in its own registry so that these tests can be run alone
 CPPUNIT_TEST_SUITE_NAMED_REGISTRATION( FileSystemWatcherTestCase,
