@@ -128,16 +128,16 @@
 // ============================================================================
 
 
-BEGIN_EVENT_TABLE(wxComboCtrl, wxComboCtrlBase)
+wxBEGIN_EVENT_TABLE(wxComboCtrl, wxComboCtrlBase)
     EVT_PAINT(wxComboCtrl::OnPaintEvent)
     EVT_MOUSE_EVENTS(wxComboCtrl::OnMouseEvent)
 #if wxUSE_COMBOCTRL_POPUP_ANIMATION
     EVT_TIMER(wxID_ANY, wxComboCtrl::OnTimerEvent)
 #endif
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 
-IMPLEMENT_DYNAMIC_CLASS(wxComboCtrl, wxComboCtrlBase)
+wxIMPLEMENT_DYNAMIC_CLASS(wxComboCtrl, wxComboCtrlBase);
 
 void wxComboCtrl::Init()
 {
@@ -731,10 +731,14 @@ void wxComboCtrl::DoTimerEvent()
     }
     else
     {
-        wxLongLong t = ::wxGetLocalTimeMillis();
+        wxMilliClock_t t = ::wxGetLocalTimeMillis();
         const wxRect& rect = m_animRect;
 
+#if wxUSE_LONGLONG
         int pos = (int) (t-m_animStart).GetLo();
+#else
+        int pos = (int) (t-m_animStart);
+#endif
         if ( pos < COMBOBOX_ANIMATION_DURATION )
         {
             int height = rect.height;

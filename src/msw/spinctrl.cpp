@@ -47,11 +47,11 @@
 // macros
 // ----------------------------------------------------------------------------
 
-BEGIN_EVENT_TABLE(wxSpinCtrl, wxSpinButton)
+wxBEGIN_EVENT_TABLE(wxSpinCtrl, wxSpinButton)
     EVT_CHAR(wxSpinCtrl::OnChar)
     EVT_SET_FOCUS(wxSpinCtrl::OnSetFocus)
     EVT_KILL_FOCUS(wxSpinCtrl::OnKillFocus)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 #define GetBuddyHwnd()      (HWND)(m_hwndBuddy)
 
@@ -684,7 +684,7 @@ void wxSpinCtrl::DoSetToolTip(wxToolTip *tip)
 
 void wxSpinCtrl::SendSpinUpdate(int value)
 {
-    wxCommandEvent event(wxEVT_SPINCTRL, GetId());
+    wxSpinEvent event(wxEVT_SPINCTRL, GetId());
     event.SetEventObject(this);
     event.SetInt(value);
 

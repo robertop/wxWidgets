@@ -146,7 +146,7 @@ bool wxConvertAnyToVariant(const wxAny& any, wxVariant* variant)
     // and others to "longlong".
     if ( wxANY_CHECK_TYPE(any, signed int) )
     {
-#ifdef wxLongLong_t
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
         wxLongLong_t ll = 0;
         if ( any.GetAs(&ll) )
         {
@@ -211,7 +211,7 @@ bool wxConvertAnyToVariant(const wxAny& any, wxVariant* variant)
 //
 class wxAnyValueTypeGlobalsManager : public wxModule
 {
-    DECLARE_DYNAMIC_CLASS(wxAnyValueTypeGlobalsManager)
+    wxDECLARE_DYNAMIC_CLASS(wxAnyValueTypeGlobalsManager);
 public:
     wxAnyValueTypeGlobalsManager() : wxModule() { }
     virtual ~wxAnyValueTypeGlobalsManager() { }
@@ -227,7 +227,7 @@ public:
 private:
 };
 
-IMPLEMENT_DYNAMIC_CLASS(wxAnyValueTypeGlobalsManager, wxModule)
+wxIMPLEMENT_DYNAMIC_CLASS(wxAnyValueTypeGlobalsManager, wxModule);
 
 #endif // wxUSE_VARIANT
 
@@ -264,7 +264,7 @@ bool wxAnyValueTypeImplInt::ConvertValue(const wxAnyValueBuffer& src,
     wxAnyBaseIntType value = GetValue(src);
     if ( wxANY_VALUE_TYPE_CHECK_TYPE(dstType, wxString) )
     {
-#ifdef wxLongLong_t
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
         wxLongLong ll(value);
         wxString s = ll.ToString();
 #else
@@ -302,7 +302,7 @@ bool wxAnyValueTypeImplUint::ConvertValue(const wxAnyValueBuffer& src,
     wxAnyBaseUintType value = GetValue(src);
     if ( wxANY_VALUE_TYPE_CHECK_TYPE(dstType, wxString) )
     {
-#ifdef wxLongLong_t
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
         wxULongLong ull(value);
         wxString s = ull.ToString();
 #else

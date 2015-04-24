@@ -83,7 +83,7 @@
 
 
 // Implement dynamic class for type value.
-IMPLEMENT_DYNAMIC_CLASS(wxColourPropertyValue, wxObject)
+wxIMPLEMENT_DYNAMIC_CLASS(wxColourPropertyValue, wxObject);
 
 bool operator == (const wxColourPropertyValue& a, const wxColourPropertyValue& b)
 {
@@ -343,7 +343,7 @@ bool wxPGSpinCtrlEditor::OnEvent( wxPropertyGrid* propgrid, wxPGProperty* proper
         if ( property->GetAttributeAsLong(wxPG_ATTR_SPINCTRL_WRAP, 0) )
             mode = wxPG_PROPERTY_VALIDATION_WRAP;
 
-        if ( property->GetValueType() == wxT("double") )
+        if ( property->GetValueType() == wxPG_VARIANT_TYPE_DOUBLE )
         {
             double v_d;
             double step = property->GetAttributeAsDouble(wxPG_ATTR_SPINCTRL_STEP, 1.0);
@@ -378,11 +378,16 @@ bool wxPGSpinCtrlEditor::OnEvent( wxPropertyGrid* propgrid, wxPGProperty* proper
         }
         else
         {
+            long step = property->GetAttributeAsLong(wxPG_ATTR_SPINCTRL_STEP, 1);
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
             wxLongLong_t v_ll;
-            wxLongLong_t step = property->GetAttributeAsLong(wxPG_ATTR_SPINCTRL_STEP, 1);
-
-            // Try (long) long
+            // Try long long
             if ( s.ToLongLong(&v_ll, 10) )
+#else
+            long v_ll;
+            // Try long
+            if ( s.ToLong(&v_ll, 10) )
+#endif
             {
                 if ( bigStep )
                     step *= 10;
@@ -395,7 +400,11 @@ bool wxPGSpinCtrlEditor::OnEvent( wxPropertyGrid* propgrid, wxPGProperty* proper
                 // Min/Max check
                 wxIntProperty::DoValidation(property, v_ll, NULL, mode);
 
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
                 s = wxLongLong(v_ll).ToString();
+#else
+                s = wxString::Format(wxT("%ld"), v_ll);
+#endif
             }
             else
             {
@@ -432,7 +441,7 @@ bool wxPGSpinCtrlEditor::OnEvent( wxPropertyGrid* propgrid, wxPGProperty* proper
 
 class wxPGDatePickerCtrlEditor : public wxPGEditor
 {
-    DECLARE_DYNAMIC_CLASS(wxPGDatePickerCtrlEditor)
+    wxDECLARE_DYNAMIC_CLASS(wxPGDatePickerCtrlEditor);
 public:
     virtual ~wxPGDatePickerCtrlEditor();
 
@@ -483,7 +492,7 @@ wxPGWindowList wxPGDatePickerCtrlEditor::CreateControls( wxPropertyGrid* propgri
     wxDateTime dateValue(wxInvalidDateTime);
 
     wxVariant value = prop->GetValue();
-    if ( value.GetType() == wxT("datetime") )
+    if ( value.IsType(wxPG_VARIANT_TYPE_DATETIME) )
         dateValue = value.GetDateTime();
 
     ctrl->Create(propgrid->GetPanel(),
@@ -509,7 +518,7 @@ void wxPGDatePickerCtrlEditor::UpdateControl( wxPGProperty* property,
 
     wxDateTime dateValue(wxInvalidDateTime);
     wxVariant v(property->GetValue());
-    if ( v.GetType() == wxT("datetime") )
+    if ( v.IsType(wxPG_VARIANT_TYPE_DATETIME) )
         dateValue = v.GetDateTime();
 
     ctrl->SetValue( dateValue );
@@ -697,7 +706,7 @@ bool wxFontProperty::OnEvent( wxPropertyGrid* propgrid, wxWindow* WXUNUSED(prima
         wxFontData data;
         wxFont font;
 
-        if ( useValue.GetType() == wxS("wxFont") )
+        if ( useValue.IsType(wxS("wxFont")) )
             font << useValue;
 
         data.SetInitialFont( font );
@@ -1069,7 +1078,7 @@ int wxSystemColourProperty::ColToInd( const wxColour& colour ) const
 void wxSystemColourProperty::OnSetValue()
 {
     // Convert from generic wxobject ptr to wxPGVariantDataColour
-    if ( m_value.GetType() == wxS("wxColour*") )
+    if ( m_value.IsType(wxS("wxColour*")) )
     {
         wxColour* pCol = wxStaticCast(m_value.GetWxObjectPtr(), wxColour);
         m_value << *pCol;
@@ -1093,7 +1102,7 @@ void wxSystemColourProperty::OnSetValue()
 
     int ind = wxNOT_FOUND;
 
-    if ( m_value.GetType() == wxS("wxColourPropertyValue") )
+    if ( m_value.IsType(wxS("wxColourPropertyValue")) )
     {
         wxColourPropertyValue cpv;
         cpv << m_value;
@@ -1218,7 +1227,7 @@ int wxSystemColourProperty::GetCustomColourIndex() const
 
 bool wxSystemColourProperty::QueryColourFromUser( wxVariant& variant ) const
 {
-    wxASSERT( m_value.GetType() != wxPG_VARIANT_TYPE_STRING );
+    wxASSERT( !m_value.IsType(wxPG_VARIANT_TYPE_STRING) );
     bool res = false;
 
     wxPropertyGrid* propgrid = GetGrid();
@@ -1756,7 +1765,7 @@ static const long gs_cp_es_syscursors_values[NUM_CURSORS] = {
     wxCURSOR_ARROWWAIT
 };
 
-IMPLEMENT_DYNAMIC_CLASS(wxCursorProperty, wxEnumProperty)
+wxIMPLEMENT_DYNAMIC_CLASS(wxCursorProperty, wxEnumProperty);
 
 static wxPGChoices gs_wxCursorProperty_choicesCache;
 
@@ -1874,7 +1883,7 @@ const wxString& wxPGGetDefaultImageWildcard()
     return wxPGGlobalVars->m_pDefaultImageWildcard;
 }
 
-IMPLEMENT_DYNAMIC_CLASS(wxImageFileProperty, wxFileProperty)
+wxIMPLEMENT_DYNAMIC_CLASS(wxImageFileProperty, wxFileProperty);
 
 wxImageFileProperty::wxImageFileProperty( const wxString& label, const wxString& name,
     const wxString& value )
@@ -2018,7 +2027,7 @@ void wxMultiChoiceProperty::GenerateValueAsString( wxVariant& value,
 {
     wxArrayString strings;
 
-    if ( value.GetType() == wxPG_VARIANT_TYPE_ARRSTRING )
+    if ( value.IsType(wxPG_VARIANT_TYPE_ARRSTRING) )
         strings = value.GetArrayString();
 
     wxString& tempStr = *target;
@@ -2204,7 +2213,7 @@ void wxDateProperty::OnSetValue()
 {
     //
     // Convert invalid dates to unspecified value
-    if ( m_value.GetType() == wxT("datetime") )
+    if ( m_value.IsType(wxPG_VARIANT_TYPE_DATETIME) )
     {
         if ( !m_value.GetDateTime().IsValid() )
             m_value.MakeNull();

@@ -392,7 +392,7 @@ void wxPropertyGridPageState::OnClientWidthChange( int newWidth, int widthChange
 
         if ( !m_isSplitterPreSet && m_dontCenterSplitter )
         {
-            long timeSinceCreation = (::wxGetLocalTimeMillis() - GetGrid()->m_timeCreated).ToLong();
+             wxMilliClock_t timeSinceCreation = ::wxGetLocalTimeMillis() - GetGrid()->m_timeCreated;
 
             // If too long, don't set splitter
             if ( timeSinceCreation < 250 )
@@ -1574,7 +1574,7 @@ void wxPropertyGridPageState::DoSetPropertyValues( const wxVariantList& list, wx
                     wxPGProperty* p = foundProp;
 
                     // If it was a list, we still have to go through it.
-                    if ( wxStrcmp(current->GetType(), wxS("list")) == 0 )
+                    if ( current->IsType(wxPG_VARIANT_TYPE_LIST) )
                     {
                         DoSetPropertyValues( current->GetList(),
                                 p->IsCategory()?p:(NULL)
@@ -1595,7 +1595,7 @@ void wxPropertyGridPageState::DoSetPropertyValues( const wxVariantList& list, wx
                 else
                 {
                     // Is it list?
-                    if ( current->GetType() != wxS("list") )
+                    if ( !current->IsType(wxPG_VARIANT_TYPE_LIST) )
                     {
                         // Not.
                     }
@@ -1638,7 +1638,7 @@ void wxPropertyGridPageState::DoSetPropertyValues( const wxVariantList& list, wx
                             wxPGProperty* foundProp = BaseGetPropertyByName(propName);
                             if ( foundProp )
                             {
-                                wxASSERT( current->GetType() == wxPG_VARIANT_TYPE_LIST );
+                                wxASSERT( current->IsType(wxPG_VARIANT_TYPE_LIST) );
 
                                 wxVariantList& list2 = current->GetList();
                                 wxVariantList::const_iterator node2;

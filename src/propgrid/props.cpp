@@ -228,11 +228,13 @@ wxIntProperty::wxIntProperty( const wxString& label, const wxString& name,
     SetValue(value);
 }
 
+#if wxUSE_LONGLONG
 wxIntProperty::wxIntProperty( const wxString& label, const wxString& name,
     const wxLongLong& value ) : wxPGProperty(label,name)
 {
     SetValue(WXVARIANT(value));
 }
+#endif
 
 wxIntProperty::~wxIntProperty() { }
 
@@ -244,20 +246,19 @@ wxString wxIntProperty::ValueToString( wxVariant& value,
     {
         return wxString::Format(wxS("%li"),value.GetLong());
     }
+#if wxUSE_LONGLONG
     else if ( valType == wxPG_VARIANT_TYPE_LONGLONG )
     {
         wxLongLong ll = value.GetLongLong();
         return ll.ToString();
     }
+#endif
 
     return wxEmptyString;
 }
 
 bool wxIntProperty::StringToValue( wxVariant& variant, const wxString& text, int argFlags ) const
 {
-    wxString s;
-    long value32;
-
     if ( text.empty() )
     {
         variant.MakeNull();
@@ -287,6 +288,7 @@ bool wxIntProperty::StringToValue( wxVariant& variant, const wxString& text, int
         const wxString variantType(variant.GetType());
         bool isPrevLong = variantType == wxPG_VARIANT_TYPE_LONG;
 
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
         wxLongLong_t value64 = 0;
 
         if ( useText.ToLongLong(&value64, 10) &&
@@ -309,7 +311,8 @@ bool wxIntProperty::StringToValue( wxVariant& variant, const wxString& text, int
                 return true;
             }
         }
-
+#endif
+        long value32;
         if ( useText.ToLong( &value32, 0 ) )
         {
             if ( !isPrevLong || variant != value32 )
@@ -327,7 +330,7 @@ bool wxIntProperty::StringToValue( wxVariant& variant, const wxString& text, int
 
 bool wxIntProperty::IntToValue( wxVariant& variant, int value, int WXUNUSED(argFlags) ) const
 {
-    if ( variant.GetType() != wxPG_VARIANT_TYPE_LONG || variant != (long)value )
+    if ( !variant.IsType(wxPG_VARIANT_TYPE_LONG) || variant != (long)value )
     {
         variant = (long)value;
         return true;
@@ -347,11 +350,11 @@ template<typename T>
 bool NumericValidation( const wxPGProperty* property,
                         T& value,
                         wxPGValidationInfo* pValidationInfo,
-                        int mode,
+                        int mode, T defMin, T defMax,
                         const wxString& strFmt )
 {
-    T min = (T) wxINT64_MIN;
-    T max = (T) wxINT64_MAX;
+    T min = defMin;
+    T max = defMax;
     wxVariant variant;
     bool minOk = false;
     bool maxOk = false;
@@ -359,15 +362,13 @@ bool NumericValidation( const wxPGProperty* property,
     variant = property->GetAttribute(wxPG_ATTR_MIN);
     if ( !variant.IsNull() )
     {
-        variant.Convert(&min);
-        minOk = true;
+        minOk = variant.Convert(&min);
     }
 
     variant = property->GetAttribute(wxPG_ATTR_MAX);
     if ( !variant.IsNull() )
     {
-        variant.Convert(&max);
-        maxOk = true;
+        maxOk = variant.Convert(&max);
     }
 
     if ( minOk )
@@ -433,11 +434,11 @@ template<>
 bool NumericValidation( const wxPGProperty* property,
                         double& value,
                         wxPGValidationInfo* pValidationInfo,
-                        int mode,
+                        int mode, double defMin, double defMax,
                         const wxString& strFmt )
 {
-    double min = DBL_MIN;
-    double max = DBL_MAX;
+    double min = defMin;
+    double max = defMax;
     wxVariant variant;
     bool minOk = false;
     bool maxOk = false;
@@ -445,15 +446,13 @@ bool NumericValidation( const wxPGProperty* property,
     variant = property->GetAttribute(wxPG_ATTR_MIN);
     if ( !variant.IsNull() )
     {
-        variant.Convert(&min);
-        minOk = true;
+        minOk = variant.Convert(&min);
     }
 
     variant = property->GetAttribute(wxPG_ATTR_MAX);
     if ( !variant.IsNull() )
     {
-        variant.Convert(&max);
-        maxOk = true;
+        maxOk = variant.Convert(&max);
     }
 
     if ( minOk || maxOk )
@@ -535,6 +534,7 @@ bool NumericValidation( const wxPGProperty* property,
     return true;
 }
 
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
 bool wxIntProperty::DoValidation( const wxPGProperty* property,
                                   wxLongLong_t& value,
                                   wxPGValidationInfo* pValidationInfo,
@@ -543,14 +543,28 @@ bool wxIntProperty::DoValidation( const wxPGProperty* property,
     return NumericValidation<wxLongLong_t>(property,
                                            value,
                                            pValidationInfo,
-                                           mode,
-                                           wxS("%lld"));
+                                           mode, LLONG_MIN, LLONG_MAX,
+                                           "%" wxLongLongFmtSpec "d");
+}
+#endif
+
+bool wxIntProperty::DoValidation(const wxPGProperty* property,
+                                 long& value,
+                                 wxPGValidationInfo* pValidationInfo,
+                                 int mode)
+{
+    return NumericValidation<long>(property, value, pValidationInfo,
+                                   mode, LONG_MIN, LONG_MAX, wxS("%ld"));
 }
 
 bool wxIntProperty::ValidateValue( wxVariant& value,
                                    wxPGValidationInfo& validationInfo ) const
 {
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
     wxLongLong_t ll = value.GetLongLong().GetValue();
+#else
+    long ll = value.GetLong();
+#endif
     return DoValidation(this, ll, &validationInfo,
                         wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE);
 }
@@ -624,12 +638,14 @@ wxUIntProperty::wxUIntProperty( const wxString& label, const wxString& name,
     SetValue((long)value);
 }
 
+#if wxUSE_LONGLONG
 wxUIntProperty::wxUIntProperty( const wxString& label, const wxString& name,
     const wxULongLong& value ) : wxPGProperty(label,name)
 {
     Init();
     SetValue(WXVARIANT(value));
 }
+#endif
 
 wxUIntProperty::~wxUIntProperty() { }
 
@@ -640,22 +656,24 @@ wxString wxUIntProperty::ValueToString( wxVariant& value,
     if ( index >= wxPG_UINT_TEMPLATE_MAX )
         index = wxPG_UINT_DEC;
 
-    if ( value.GetType() == wxPG_VARIANT_TYPE_LONG )
+    const wxString valType(value.GetType());
+    if ( valType == wxPG_VARIANT_TYPE_LONG )
     {
         return wxString::Format(gs_uintTemplates32[index],
                                 (unsigned long)value.GetLong());
     }
-
-    wxULongLong ull = value.GetULongLong();
-
-    return wxString::Format(gs_uintTemplates64[index], ull.GetValue());
+#if wxUSE_LONGLONG
+    else if ( valType == wxPG_VARIANT_TYPE_ULONGLONG )
+    {
+        wxULongLong ull = value.GetULongLong();
+        return wxString::Format(gs_uintTemplates64[index], ull.GetValue());
+    }
+#endif
+    return wxEmptyString;
 }
 
-bool wxUIntProperty::StringToValue( wxVariant& variant, const wxString& text, int WXUNUSED(argFlags) ) const
+bool wxUIntProperty::StringToValue(wxVariant& variant, const wxString& text, int argFlags) const
 {
-    const wxString variantType(variant.GetType());
-    bool isPrevLong = variantType == wxPG_VARIANT_TYPE_LONG;
-
     if ( text.empty() )
     {
         variant.MakeNull();
@@ -666,8 +684,13 @@ bool wxUIntProperty::StringToValue( wxVariant& variant, const wxString& text, in
     if ( text[0] == wxS('$') )
         start++;
 
-    wxULongLong_t value64 = 0;
     wxString s = text.substr(start, text.length() - start);
+
+    const wxString variantType(variant.GetType());
+    bool isPrevLong = variantType == wxPG_VARIANT_TYPE_LONG;
+
+#if defined(wxULongLong_t) && wxUSE_LONGLONG
+    wxULongLong_t value64 = 0;
 
     if ( s.ToULongLong(&value64, (unsigned int)m_realBase) )
     {
@@ -688,17 +711,21 @@ bool wxUIntProperty::StringToValue( wxVariant& variant, const wxString& text, in
                 return true;
             }
         }
-        else
-        {
-            unsigned long value32 = wxLongLong(value64).GetLo();
-            if ( !isPrevLong || m_value != (long)value32 )
-            {
-                variant = (long)value32;
-                return true;
-            }
-        }
-
     }
+#endif
+    unsigned long value32;
+    if ( s.ToULong(&value32, m_realBase) && value32 <= LONG_MAX )
+    {
+        if ( !isPrevLong || variant != (long)value32 )
+        {
+            variant = (long)value32;
+            return true;
+        }
+    }
+    else if ( argFlags & wxPG_REPORT_ERROR )
+    {
+    }
+
     return false;
 }
 
@@ -712,15 +739,36 @@ bool wxUIntProperty::IntToValue( wxVariant& variant, int number, int WXUNUSED(ar
     return false;
 }
 
+#if defined(wxULongLong_t) && wxUSE_LONGLONG
+bool wxUIntProperty::DoValidation(const wxPGProperty* property,
+                                  wxULongLong_t& value,
+                                  wxPGValidationInfo* pValidationInfo,
+                                  int mode )
+{
+    return NumericValidation<wxULongLong_t>(property, value, pValidationInfo,
+                                            mode, 0, ULLONG_MAX,
+                                            "%" wxLongLongFmtSpec "u");
+}
+#endif
+
+bool wxUIntProperty::DoValidation(const wxPGProperty* property,
+                                  long& value,
+                                  wxPGValidationInfo* pValidationInfo,
+                                  int mode)
+{
+    return NumericValidation<long>(property, value, pValidationInfo,
+                                   mode, 0, ULONG_MAX, wxS("%ld"));
+}
+
 bool wxUIntProperty::ValidateValue( wxVariant& value, wxPGValidationInfo& validationInfo ) const
 {
+#if defined(wxULongLong_t) && wxUSE_LONGLONG
     wxULongLong_t uul = value.GetULongLong().GetValue();
-    return
-    NumericValidation<wxULongLong_t>(this,
-                                     uul,
-                                     &validationInfo,
-                                     wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE,
-                                     wxS("%llu"));
+#else
+    long uul = value.GetLong();
+#endif
+    return DoValidation(this, uul, &validationInfo,
+                        wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE);
 }
 
 wxValidator* wxUIntProperty::DoGetValidator() const
@@ -905,7 +953,7 @@ bool wxFloatProperty::DoValidation( const wxPGProperty* property,
     return NumericValidation<double>(property,
                                      value,
                                      pValidationInfo,
-                                     mode,
+                                     mode, DBL_MIN, DBL_MAX,
                                      wxS("%g"));
 }
 
@@ -965,7 +1013,7 @@ wxValidator* wxFloatProperty::DoGetValidator() const
 // We cannot use standard WX_PG_IMPLEMENT_PROPERTY_CLASS macro, since
 // there is a custom GetEditorClass.
 
-IMPLEMENT_DYNAMIC_CLASS(wxBoolProperty, wxPGProperty)
+wxIMPLEMENT_DYNAMIC_CLASS(wxBoolProperty, wxPGProperty);
 
 const wxPGEditor* wxBoolProperty::DoGetEditorClass() const
 {
@@ -1223,7 +1271,7 @@ bool wxEnumProperty::ValidateValue( wxVariant& value, wxPGValidationInfo& WXUNUS
     // Make sure string value is in the list,
     // unless property has string as preferred value type
     // To reduce code size, use conversion here as well
-    if ( value.GetType() == wxPG_VARIANT_TYPE_STRING )
+    if ( value.IsType(wxPG_VARIANT_TYPE_STRING) )
         return ValueFromString_(value, NULL, value.GetString(), wxPG_PROPERTY_SPECIFIC);
 
     return true;
@@ -1232,7 +1280,7 @@ bool wxEnumProperty::ValidateValue( wxVariant& value, wxPGValidationInfo& WXUNUS
 wxString wxEnumProperty::ValueToString( wxVariant& value,
                                             int WXUNUSED(argFlags) ) const
 {
-    if ( value.GetType() == wxPG_VARIANT_TYPE_STRING )
+    if ( value.IsType(wxPG_VARIANT_TYPE_STRING) )
         return value.GetString();
 
     int index = m_choices.Index(value.GetLong());
@@ -1781,7 +1829,7 @@ bool wxFlagsProperty::DoSetAttribute( const wxString& name, wxVariant& value )
 // wxDirProperty
 // -----------------------------------------------------------------------
 
-IMPLEMENT_DYNAMIC_CLASS(wxDirProperty, wxLongStringProperty)
+wxIMPLEMENT_DYNAMIC_CLASS(wxDirProperty, wxLongStringProperty);
 
 wxDirProperty::wxDirProperty( const wxString& name, const wxString& label, const wxString& value )
   : wxLongStringProperty(name,label,value)
@@ -2254,11 +2302,11 @@ bool wxLongStringProperty::StringToValue( wxVariant& variant, const wxString& te
 // wxPGArrayEditorDialog
 // -----------------------------------------------------------------------
 
-BEGIN_EVENT_TABLE(wxPGArrayEditorDialog, wxDialog)
+wxBEGIN_EVENT_TABLE(wxPGArrayEditorDialog, wxDialog)
     EVT_IDLE(wxPGArrayEditorDialog::OnIdle)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
-IMPLEMENT_ABSTRACT_CLASS(wxPGArrayEditorDialog, wxDialog)
+wxIMPLEMENT_ABSTRACT_CLASS(wxPGArrayEditorDialog, wxDialog);
 
 #include "wx/editlbox.h"
 #include "wx/listctrl.h"
@@ -2571,10 +2619,10 @@ void wxPGArrayEditorDialog::OnBeginLabelEdit(wxListEvent& evt)
 // wxPGArrayStringEditorDialog
 // -----------------------------------------------------------------------
 
-IMPLEMENT_DYNAMIC_CLASS(wxPGArrayStringEditorDialog, wxPGArrayEditorDialog)
+wxIMPLEMENT_DYNAMIC_CLASS(wxPGArrayStringEditorDialog, wxPGArrayEditorDialog);
 
-BEGIN_EVENT_TABLE(wxPGArrayStringEditorDialog, wxPGArrayEditorDialog)
-END_EVENT_TABLE()
+wxBEGIN_EVENT_TABLE(wxPGArrayStringEditorDialog, wxPGArrayEditorDialog)
+wxEND_EVENT_TABLE()
 
 // -----------------------------------------------------------------------
 

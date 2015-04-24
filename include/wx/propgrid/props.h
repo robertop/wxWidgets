@@ -35,13 +35,13 @@ class wxPGArrayEditorDialog;
 //
 
 #define wxPG_IMPLEMENT_PROPERTY_CLASS(NAME, UPCLASS, EDITOR) \
-wxIMPLEMENT_DYNAMIC_CLASS(NAME, UPCLASS) \
+wxIMPLEMENT_DYNAMIC_CLASS(NAME, UPCLASS); \
 wxPG_IMPLEMENT_PROPERTY_CLASS_PLAIN(NAME, EDITOR)
 
 #if WXWIN_COMPATIBILITY_3_0
 // This macro is deprecated. Use wxPG_IMPLEMENT_PROPERTY_CLASS instead.
 #define WX_PG_IMPLEMENT_PROPERTY_CLASS(NAME, UPCLASS, T, T_AS_ARG, EDITOR) \
-IMPLEMENT_DYNAMIC_CLASS(NAME, UPCLASS) \
+wxIMPLEMENT_DYNAMIC_CLASS(NAME, UPCLASS); \
 WX_PG_IMPLEMENT_PROPERTY_CLASS_PLAIN(NAME, T, EDITOR)
 #endif // WXWIN_COMPATIBILITY_3_0
 
@@ -190,10 +190,10 @@ public:
          or
 
       @code
-          wxLongLong_t value;
+          wxLongLong value;
           wxVariant variant = property->GetValue();
-          if ( variant.GetType() == "wxLongLong" )
-              value = wxLongLongFromVariant(variant);
+          if ( variant.IsType("longlong") )
+              value = variant.GetLongLong();
           else
               value = variant.GetLong();
       @endcode
@@ -223,9 +223,11 @@ public:
                    long value = 0 );
     virtual ~wxIntProperty();
 
+#if wxUSE_LONGLONG
     wxIntProperty( const wxString& label,
                    const wxString& name,
                    const wxLongLong& value );
+#endif
     virtual wxString ValueToString( wxVariant& value, int argFlags = 0 ) const;
     virtual bool StringToValue( wxVariant& variant,
                                 const wxString& text,
@@ -238,13 +240,20 @@ public:
     static wxValidator* GetClassValidator();
     virtual wxValidator* DoGetValidator() const;
 
-    /** Validation helper.
+    /** Validation helpers.
     */
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
     static bool DoValidation( const wxPGProperty* property,
                               wxLongLong_t& value,
                               wxPGValidationInfo* pValidationInfo,
                               int mode =
                                 wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE );
+#endif
+    static bool DoValidation(const wxPGProperty* property,
+                             long& value,
+                             wxPGValidationInfo* pValidationInfo,
+                             int mode =
+                                wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE);
 
 protected:
 };
@@ -277,9 +286,11 @@ public:
                     const wxString& name = wxPG_LABEL,
                     unsigned long value = 0 );
     virtual ~wxUIntProperty();
+#if wxUSE_LONGLONG
     wxUIntProperty( const wxString& label,
                     const wxString& name,
                     const wxULongLong& value );
+#endif
     virtual wxString ValueToString( wxVariant& value, int argFlags = 0 ) const;
     virtual bool StringToValue( wxVariant& variant,
                                 const wxString& text,
@@ -291,12 +302,25 @@ public:
     virtual bool IntToValue( wxVariant& variant,
                              int number,
                              int argFlags = 0 ) const;
+
 protected:
     wxByte      m_base;
     wxByte      m_realBase; // translated to 8,16,etc.
     wxByte      m_prefix;
 private:
     void Init();
+
+    // Validation helpers.
+#if defined(wxULongLong_t) && wxUSE_LONGLONG
+    static bool DoValidation(const wxPGProperty* property,
+                             wxULongLong_t& value,
+                             wxPGValidationInfo* pValidationInfo,
+                             int mode =wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE);
+#endif
+    static bool DoValidation(const wxPGProperty* property,
+                             long& value,
+                             wxPGValidationInfo* pValidationInfo,
+                             int mode = wxPG_PROPERTY_VALIDATION_ERROR_MESSAGE);
 };
 
 // -----------------------------------------------------------------------
@@ -743,7 +767,7 @@ protected:
 */
 class WXDLLIMPEXP_PROPGRID wxDirProperty : public wxLongStringProperty
 {
-    DECLARE_DYNAMIC_CLASS(wxDirProperty)
+    wxDECLARE_DYNAMIC_CLASS(wxDirProperty);
 public:
     wxDirProperty( const wxString& name = wxPG_LABEL,
                    const wxString& label = wxPG_LABEL,
@@ -998,8 +1022,8 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_CLASS_NO_COPY(wxPGArrayEditorDialog)
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_DYNAMIC_CLASS_NO_COPY(wxPGArrayEditorDialog);
+    wxDECLARE_EVENT_TABLE();
 };
 
 #endif // wxUSE_EDITABLELISTBOX
@@ -1052,8 +1076,8 @@ protected:
     virtual void ArraySwap( size_t first, size_t second );
 
 private:
-    DECLARE_DYNAMIC_CLASS_NO_COPY(wxPGArrayStringEditorDialog)
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_DYNAMIC_CLASS_NO_COPY(wxPGArrayStringEditorDialog);
+    wxDECLARE_EVENT_TABLE();
 };
 
 // -----------------------------------------------------------------------

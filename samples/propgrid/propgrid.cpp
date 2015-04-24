@@ -95,7 +95,7 @@ public:
                           wxEvent& event ) const wxOVERRIDE;
 };
 
-IMPLEMENT_DYNAMIC_CLASS(wxSampleMultiButtonEditor, wxPGTextCtrlEditor)
+wxIMPLEMENT_DYNAMIC_CLASS(wxSampleMultiButtonEditor, wxPGTextCtrlEditor);
 
 wxPGWindowList wxSampleMultiButtonEditor::CreateControls( wxPropertyGrid* propGrid,
                                                           wxPGProperty* property,
@@ -384,6 +384,7 @@ enum
     ID_ENABLE,
     ID_SETREADONLY,
     ID_HIDE,
+    ID_BOOL_CHECKBOX,
     ID_DELETE,
     ID_DELETER,
     ID_DELETEALL,
@@ -492,6 +493,7 @@ wxBEGIN_EVENT_TABLE(FormMain, wxFrame)
     EVT_MENU( ID_ENABLE, FormMain::OnEnableDisable )
     EVT_MENU( ID_SETREADONLY, FormMain::OnSetReadOnly )
     EVT_MENU( ID_HIDE, FormMain::OnHide )
+    EVT_MENU( ID_BOOL_CHECKBOX, FormMain::OnBoolCheckbox )
 
     EVT_MENU( ID_ITERATE1, FormMain::OnIterate1Click )
     EVT_MENU( ID_ITERATE2, FormMain::OnIterate2Click )
@@ -1422,7 +1424,11 @@ void FormMain::PopulateWithExamples ()
     pg->Append( new wxPointProperty( wxT("PointProperty"), wxT("Position"), GetPosition() ) );
 
     // UInt samples
+#if wxUSE_LONGLONG
     pg->Append( new wxUIntProperty( wxT("UIntProperty"), wxPG_LABEL, wxULongLong(wxULL(0xFEEEFEEEFEEE))));
+#else
+    pg->Append( new wxUIntProperty( wxT("UIntProperty"), wxPG_LABEL, 0xFEEEFEEE));
+#endif
     pg->SetPropertyAttribute( wxT("UIntProperty"), wxPG_UINT_PREFIX, wxPG_PREFIX_NONE );
     pg->SetPropertyAttribute( wxT("UIntProperty"), wxPG_UINT_BASE, wxPG_BASE_HEX );
     //pg->SetPropertyAttribute( wxT("UIntProperty"), wxPG_UINT_PREFIX, wxPG_PREFIX_NONE );
@@ -1562,20 +1568,20 @@ void FormMain::PopulateWithExamples ()
 
     pid->AppendChild( new wxStringProperty(wxT("Latest Release"),
                                            wxPG_LABEL,
-                                           wxT("2.8.10")));
+                                           wxT("3.0.2")));
     pid->AppendChild( new wxBoolProperty(wxT("Win API"),
                                          wxPG_LABEL,
                                          true) );
 
     pg->Append( pid );
 
-    pg->AppendIn(pid, new wxBoolProperty(wxT("QT"), wxPG_LABEL, false) );
+    pg->AppendIn(pid, new wxBoolProperty(wxT("QT"), wxPG_LABEL, true) );
     pg->AppendIn(pid, new wxBoolProperty(wxT("Cocoa"), wxPG_LABEL, true) );
     pg->AppendIn(pid, new wxBoolProperty(wxT("BeOS"), wxPG_LABEL, false) );
-    pg->AppendIn(pid, new wxStringProperty(wxT("SVN Trunk Version"), wxPG_LABEL, wxT("2.9.0")) );
+    pg->AppendIn(pid, new wxStringProperty(wxT("Trunk Version"), wxPG_LABEL, wxT("3.1.0")) );
     pg->AppendIn(pid, new wxBoolProperty(wxT("GTK+"), wxPG_LABEL, true) );
     pg->AppendIn(pid, new wxBoolProperty(wxT("Sky OS"), wxPG_LABEL, false) );
-    pg->AppendIn(pid, new wxBoolProperty(wxT("QT"), wxPG_LABEL, false) );
+    pg->AppendIn(pid, new wxBoolProperty(wxT("Android"), wxPG_LABEL, false) );
 
     AddTestProperties(pg);
 }
@@ -1939,7 +1945,6 @@ void FormMain::CreateGrid( int style, int extraStyle )
 
     // Change some attributes in all properties
     //pgman->SetPropertyAttributeAll(wxPG_BOOL_USE_DOUBLE_CLICK_CYCLING,true);
-    //pgman->SetPropertyAttributeAll(wxPG_BOOL_USE_CHECKBOX,true);
 
     //m_pPropGridManager->SetSplitterLeft(true);
     //m_pPropGridManager->SetSplitterPosition(137);
@@ -2102,14 +2107,16 @@ FormMain::FormMain(const wxString& title, const wxPoint& pos, const wxSize& size
     menuTry->AppendSeparator();
     menuTry->AppendCheckItem(ID_STATICLAYOUT, wxT("Static Layout"),
         wxT("Switches between user-modifiable and static layouts.") );
+    menuTry->AppendCheckItem(ID_BOOL_CHECKBOX, wxT("Render Boolean values as checkboxes"),
+        wxT("Renders Boolean values as checkboxes"));
     menuTry->Append(ID_SETCOLUMNS, wxT("Set Number of Columns") );
     menuTry->AppendSeparator();
     menuTry->Append(ID_TESTXRC, wxT("Display XRC sample") );
-    menuTry->AppendSeparator();
-    menuTry->Append(ID_RUNTESTFULL, wxT("Run Tests (full)") );
-    menuTry->Append(ID_RUNTESTPARTIAL, wxT("Run Tests (fast)") );
 
     menuFile->Append(ID_RUNMINIMAL, wxT("Run Minimal Sample") );
+    menuFile->AppendSeparator();
+    menuFile->Append(ID_RUNTESTFULL, wxT("Run Tests (full)") );
+    menuFile->Append(ID_RUNTESTPARTIAL, wxT("Run Tests (fast)") );
     menuFile->AppendSeparator();
     menuFile->Append(ID_QUIT, wxT("E&xit\tAlt-X"), wxT("Quit this program") );
 
@@ -2532,6 +2539,11 @@ void FormMain::OnHide( wxCommandEvent& WXUNUSED(event) )
     m_pPropGridManager->HideProperty( id, true );
 }
 
+void FormMain::OnBoolCheckbox(wxCommandEvent& evt)
+{
+    m_pPropGridManager->SetPropertyAttributeAll(wxPG_BOOL_USE_CHECKBOX, evt.IsChecked());
+}
+
 // -----------------------------------------------------------------------
 
 #include "wx/colordlg.h"
@@ -2610,12 +2622,24 @@ void FormMain::OnTestReplaceClick( wxCommandEvent& WXUNUSED(event) )
         choices.Add(wxT("Flag 1"),0x0002);
         choices.Add(wxT("Flag 2"),0x0004);
         choices.Add(wxT("Flag 3"),0x0008);
+        const long maxVal = 0x000F;
+        // Look for unused property name
+        wxString propName = wxT("ReplaceFlagsProperty");
+        int idx = 0;
+        while ( m_pPropGridManager->GetPropertyByName(propName) )
+        {
+            propName = wxString::Format(wxT("ReplaceFlagsProperty %i"), ++idx);
+        }
+        // Replace property and select new one
+        // with random value in range [1..maxVal]
+        const long propVal = wxGetLocalTime() % maxVal + 1;
         wxPGProperty* newId = m_pPropGridManager->ReplaceProperty( pgId,
-            new wxFlagsProperty(wxT("ReplaceFlagsProperty"), wxPG_LABEL, choices, 0x0003) );
+            new wxFlagsProperty(propName, wxPG_LABEL, choices, propVal) );
         m_pPropGridManager->SetPropertyAttribute( newId,
                                               wxPG_BOOL_USE_CHECKBOX,
                                               true,
                                               wxPG_RECURSE );
+        m_pPropGridManager->SelectProperty(newId);
     }
     else
         wxMessageBox(wxT("First select a property"));
@@ -3046,7 +3070,7 @@ FormMain::~FormMain()
 
 // -----------------------------------------------------------------------
 
-IMPLEMENT_APP(cxApplication)
+wxIMPLEMENT_APP(cxApplication);
 
 bool cxApplication::OnInit()
 {
@@ -3250,7 +3274,7 @@ struct PropertyGridPopup : wxPopupWindow
     wxDECLARE_EVENT_TABLE();
 };
 
-IMPLEMENT_CLASS(PropertyGridPopup, wxPopupWindow)
+wxIMPLEMENT_CLASS(PropertyGridPopup, wxPopupWindow);
 wxBEGIN_EVENT_TABLE(PropertyGridPopup, wxPopupWindow)
     EVT_PG_ITEM_COLLAPSED(ID_POPUPGRID, PropertyGridPopup::OnCollapse)
     EVT_PG_ITEM_EXPANDED(ID_POPUPGRID, PropertyGridPopup::OnExpand)

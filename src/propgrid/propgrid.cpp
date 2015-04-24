@@ -159,14 +159,14 @@ const char wxPropertyGridNameStr[] = "wxPropertyGrid";
 
 class wxPGGlobalVarsClassManager : public wxModule
 {
-    DECLARE_DYNAMIC_CLASS(wxPGGlobalVarsClassManager)
+    wxDECLARE_DYNAMIC_CLASS(wxPGGlobalVarsClassManager);
 public:
     wxPGGlobalVarsClassManager() {}
     virtual bool OnInit() wxOVERRIDE { wxPGGlobalVars = new wxPGGlobalVarsClass(); return true; }
     virtual void OnExit() wxOVERRIDE { wxDELETE(wxPGGlobalVars); }
 };
 
-IMPLEMENT_DYNAMIC_CLASS(wxPGGlobalVarsClassManager, wxModule)
+wxIMPLEMENT_DYNAMIC_CLASS(wxPGGlobalVarsClassManager, wxModule);
 
 
 // When wxPG is loaded dynamically after the application is already running
@@ -259,9 +259,9 @@ void wxPropertyGridInitGlobalsIfNeeded()
 // wxPropertyGrid
 // -----------------------------------------------------------------------
 
-IMPLEMENT_DYNAMIC_CLASS(wxPropertyGrid, wxControl)
+wxIMPLEMENT_DYNAMIC_CLASS(wxPropertyGrid, wxControl);
 
-BEGIN_EVENT_TABLE(wxPropertyGrid, wxControl)
+wxBEGIN_EVENT_TABLE(wxPropertyGrid, wxControl)
   EVT_IDLE(wxPropertyGrid::OnIdle)
   EVT_PAINT(wxPropertyGrid::OnPaint)
   EVT_SIZE(wxPropertyGrid::OnResize)
@@ -279,7 +279,7 @@ BEGIN_EVENT_TABLE(wxPropertyGrid, wxControl)
   EVT_RIGHT_UP(wxPropertyGrid::OnMouseRightClick)
   EVT_LEFT_DCLICK(wxPropertyGrid::OnMouseDoubleClick)
   EVT_KEY_DOWN(wxPropertyGrid::OnKey)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 // -----------------------------------------------------------------------
 
@@ -1213,7 +1213,7 @@ void wxPropertyGrid::OnTLPChanging( wxWindow* newTLP )
     if ( newTLP == m_tlp )
         return;
 
-    wxLongLong currentTime = ::wxGetLocalTimeMillis();
+    wxMilliClock_t currentTime = ::wxGetLocalTimeMillis();
 
     //
     // Parent changed so let's redetermine and re-hook the
@@ -2999,7 +2999,7 @@ bool wxPropertyGrid::PerformValidation( wxPGProperty* p, wxVariant& pendingValue
     //
     // Variant list a special value that cannot be validated
     // by normal means.
-    if ( pendingValue.GetType() != wxPG_VARIANT_TYPE_LIST )
+    if ( !pendingValue.IsType(wxPG_VARIANT_TYPE_LIST) )
     {
         if ( !p->ValidateValue(pendingValue, m_validationInfo) )
             return false;
@@ -3045,7 +3045,7 @@ bool wxPropertyGrid::PerformValidation( wxPGProperty* p, wxVariant& pendingValue
     wxVariant value;
     wxPGProperty* evtChangingProperty = changedProperty;
 
-    if ( pPendingValue->GetType() != wxPG_VARIANT_TYPE_LIST )
+    if ( !pPendingValue->IsType(wxPG_VARIANT_TYPE_LIST) )
     {
         value = *pPendingValue;
     }
@@ -3104,7 +3104,7 @@ bool wxPropertyGrid::PerformValidation( wxPGProperty* p, wxVariant& pendingValue
 
     // If changedProperty is not property which value was edited,
     // then call wxPGProperty::ValidateValue() for that as well.
-    if ( p != changedProperty && value.GetType() != wxPG_VARIANT_TYPE_LIST )
+    if ( p != changedProperty && !value.IsType(wxPG_VARIANT_TYPE_LIST) )
     {
         if ( !changedProperty->ValidateValue(value, m_validationInfo) )
             return false;
@@ -6260,7 +6260,7 @@ wxPGChoiceEntry& wxPGChoicesData::Insert( int index,
 // wxPropertyGridEvent
 // -----------------------------------------------------------------------
 
-IMPLEMENT_DYNAMIC_CLASS(wxPropertyGridEvent, wxCommandEvent)
+wxIMPLEMENT_DYNAMIC_CLASS(wxPropertyGridEvent, wxCommandEvent);
 
 
 wxDEFINE_EVENT( wxEVT_PG_SELECTED, wxPropertyGridEvent );

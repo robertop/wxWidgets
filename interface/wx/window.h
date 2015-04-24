@@ -919,6 +919,74 @@ public:
     virtual void FitInside();
 
     /**
+        Convert DPI-independent pixel values to the value in pixels appropriate
+        for the current toolkit.
+
+        A DPI-independent pixel is just a pixel at the standard 96 DPI
+        resolution. To keep the same physical size at higher resolution, the
+        physical pixel value must be scaled by GetContentScaleFactor() but this
+        scaling may be already done by the underlying toolkit (GTK+, Cocoa,
+        ...) automatically. This method performs the conversion only if it is
+        not already done by the lower level toolkit and so by using it with
+        pixel values you can guarantee that the physical size of the
+        corresponding elements will remain the same in all resolutions under
+        all platforms. For example, instead of creating a bitmap of the hard
+        coded size of 32 pixels you should use
+        @code
+            wxBitmap bmp(FromDIP(32, 32));
+        @endcode
+        to avoid using tiny bitmaps on high DPI screens.
+
+        Notice that this function is only needed when using hard coded pixel
+        values. It is not necessary if the sizes are already based on the
+        DPI-independent units such as dialog units or if you are relying on the
+        controls automatic best size determination and using sizers to lay out
+        them.
+
+        @since 3.1.0
+     */
+    wxSize FromDIP(const wxSize& sz) const;
+
+    /// @overload
+    wxPoint FromDIP(const wxPoint& pt) const;
+
+    /**
+        Convert DPI-independent distance in pixels to the value in pixels
+        appropriate for the current toolkit.
+
+        This is the same as FromDIP(const wxSize& sz) overload, but assumes
+        that the resolution is the same in horizontal and vertical directions.
+
+        @since 3.1.0
+     */
+    int FromDIP(int d) const;
+
+    /**
+        Non window-specific DPI-independent pixels conversion functions.
+
+        The display resolution depends on the window in general as different
+        windows can appear on different monitors using different resolutions,
+        however sometimes no window is available for converting the resolution
+        independent pixels to the physical values and in this case these static
+        overloads can be used with @NULL value for @a w argument.
+
+        Using these methods is discouraged as passing @NULL will prevent your
+        application from correctly supporting monitors with different
+        resolutions even in the future wxWidgets versions which will add
+        support for them, and passing non-@NULL window is just a less
+        convenient way of calling the non-static FromDIP() method.
+
+        @since 3.1.0
+     */
+    static wxSize FromDIP(const wxSize& sz, const wxWindow* w);
+
+    /// @overload
+    static wxPoint FromDIP(const wxPoint& pt, const wxWindow* w);
+
+    /// @overload
+    static wxSize FromDIP(const wxSize& sz, const wxWindow* w);
+
+    /**
         This functions returns the best acceptable minimal size for the window.
 
         For example, for a static control, it will be the minimal size such that the
@@ -1126,10 +1194,19 @@ public:
        Returns the magnification of the backing store of this window, eg 2.0
        for a window on a retina screen.
 
+       This factor should be used to determine the size of bitmaps and similar
+       "content-containing" windows appropriate for the current resolution.
+       E.g. the program may load a 32px bitmap if the content scale factor is
+       1.0 or 64px version of the same bitmap if it is 2.0 or bigger.
+
+       Notice that this method should @e not be used for window sizes, as they
+       are already scaled by this factor by the underlying toolkit under some
+       platforms. Use FromDIP() for anything window-related instead.
+
        @since 2.9.5
     */
-    virtual double GetContentScaleFactor() const;
-    
+    double GetContentScaleFactor() const;
+
     /**
         Returns the size of the left/right and top/bottom borders of this window in x
         and y components of the result respectively.
@@ -3444,9 +3521,8 @@ public:
                  modifier/virtualKeyCode combination.
 
         @remarks Use EVT_HOTKEY(hotkeyId, fnc) in the event table to capture the
-                 event. This function is currently only implemented
-                 under Windows. It is used in the Windows CE port for
-                 detecting hardware button presses.
+                 event. This function is currently only implemented under MSW
+                 and OSX and always returns false in the other ports.
 
         @see UnregisterHotKey()
     */

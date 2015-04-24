@@ -148,7 +148,7 @@
 // wxPGEditor
 // -----------------------------------------------------------------------
 
-IMPLEMENT_ABSTRACT_CLASS(wxPGEditor, wxObject)
+wxIMPLEMENT_ABSTRACT_CLASS(wxPGEditor, wxObject);
 
 
 wxPGEditor::~wxPGEditor()
@@ -535,7 +535,7 @@ protected:
 
     void OnMouseEvent( wxMouseEvent& event )
     {
-        wxLongLong t = ::wxGetLocalTimeMillis();
+        wxMilliClock_t t = ::wxGetLocalTimeMillis();
         int evtType = event.GetEventType();
 
         if ( m_property->HasFlag(wxPG_PROP_USE_DCC) &&
@@ -560,7 +560,7 @@ protected:
                 {
                     if ( m_downReceived || m_timeLastMouseUp == 1 )
                     {
-                        wxLongLong timeFromLastUp = (t-m_timeLastMouseUp);
+                        wxMilliClock_t timeFromLastUp = (t-m_timeLastMouseUp);
 
                         if ( timeFromLastUp < DOUBLE_CLICK_CONVERSION_TRESHOLD )
                         {
@@ -586,18 +586,18 @@ protected:
     }
 
 private:
-    wxLongLong                  m_timeLastMouseUp;
+    wxMilliClock_t              m_timeLastMouseUp;
     wxOwnerDrawnComboBox*       m_combo;
     wxPGProperty*               m_property;  // Selected property
     bool                        m_downReceived;
 
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_EVENT_TABLE();
 };
 
-BEGIN_EVENT_TABLE(wxPGDoubleClickProcessor, wxEvtHandler)
+wxBEGIN_EVENT_TABLE(wxPGDoubleClickProcessor, wxEvtHandler)
     EVT_MOUSE_EVENTS(wxPGDoubleClickProcessor::OnMouseEvent)
     EVT_SET_FOCUS(wxPGDoubleClickProcessor::OnSetFocus)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 
 
@@ -1536,19 +1536,19 @@ private:
     }
     void OnLeftClickActivate( wxCommandEvent& evt );
 
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_EVENT_TABLE();
 };
 
 wxDEFINE_EVENT( wxEVT_CB_LEFT_CLICK_ACTIVATE, wxCommandEvent );
 
-BEGIN_EVENT_TABLE(wxSimpleCheckBox, wxControl)
+wxBEGIN_EVENT_TABLE(wxSimpleCheckBox, wxControl)
     EVT_PAINT(wxSimpleCheckBox::OnPaint)
     EVT_LEFT_DOWN(wxSimpleCheckBox::OnLeftClick)
     EVT_LEFT_DCLICK(wxSimpleCheckBox::OnLeftClick)
     EVT_KEY_DOWN(wxSimpleCheckBox::OnKeyDown)
     EVT_SIZE(wxSimpleCheckBox::OnResize)
     EVT_COMMAND(wxID_ANY, wxEVT_CB_LEFT_CLICK_ACTIVATE, wxSimpleCheckBox::OnLeftClickActivate)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 wxSimpleCheckBox::~wxSimpleCheckBox()
 {
@@ -1984,7 +1984,7 @@ wxWindow* wxPropertyGrid::GenerateEditorTextCtrl( const wxPoint& pos,
     wxVariant attrVal = prop->GetAttribute(wxPG_ATTR_AUTOCOMPLETE);
     if ( !attrVal.IsNull() )
     {
-        wxASSERT(attrVal.GetType() == wxS("arrstring"));
+        wxASSERT(attrVal.IsType(wxPG_VARIANT_TYPE_ARRSTRING));
         tc->AutoComplete(attrVal.GetArrayString());
     }
 
@@ -2141,7 +2141,7 @@ wxPGEditor* wxPropertyGridInterface::GetEditorByName( const wxString& editorName
 // wxPGEditorDialogAdapter
 // -----------------------------------------------------------------------
 
-IMPLEMENT_ABSTRACT_CLASS(wxPGEditorDialogAdapter, wxObject)
+wxIMPLEMENT_ABSTRACT_CLASS(wxPGEditorDialogAdapter, wxObject);
 
 bool wxPGEditorDialogAdapter::ShowDialog( wxPropertyGrid* propGrid, wxPGProperty* property )
 {

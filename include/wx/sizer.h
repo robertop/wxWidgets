@@ -78,6 +78,12 @@ public:
     wxSizerFlags& Centre() { return Align(wxALIGN_CENTRE); }
     wxSizerFlags& Center() { return Centre(); }
 
+    wxSizerFlags& CentreVertical() { return Align(wxALIGN_CENTRE_VERTICAL); }
+    wxSizerFlags& CenterVertical() { return CentreVertical(); }
+
+    wxSizerFlags& CentreHorizontal() { return Align(wxALIGN_CENTRE_HORIZONTAL); }
+    wxSizerFlags& CenterHorizontal() { return CentreHorizontal(); }
+
     wxSizerFlags& Top()
     {
         m_flags &= ~(wxALIGN_BOTTOM | wxALIGN_CENTRE_VERTICAL);
@@ -111,10 +117,21 @@ public:
         // GNOME HIG says to use 6px as the base unit:
         // http://library.gnome.org/devel/hig-book/stable/design-window.html.en
         return 6;
-    #else
-        // FIXME: default border size shouldn't be hardcoded and at the very
-        //        least they should depend on the current font size
+    #elif defined(__WXMAC__)
+        // Not sure if this is really the correct size for the border.
         return 5;
+    #else
+        // For the other platforms, we need to scale raw pixel values using the
+        // current DPI, do it once (and cache the result) in another function.
+        #define wxNEEDS_BORDER_IN_PX
+
+        // We don't react to dynamic DPI changes, so we can cache the values of
+        // the border in on-screen pixels after computing it once. This
+        // could/should change in the future.
+        if ( !ms_defaultBorderInPx )
+            ms_defaultBorderInPx = DoGetDefaultBorderInPx();
+
+        return ms_defaultBorderInPx;
     #endif
 #else
         return 0;
@@ -216,6 +233,12 @@ public:
     int GetBorderInPixels() const { return m_borderInPixels; }
 
 private:
+#ifdef wxNEEDS_BORDER_IN_PX
+    static int DoGetDefaultBorderInPx();
+
+    static int ms_defaultBorderInPx;
+#endif // wxNEEDS_BORDER_IN_PX
+
     int m_proportion;
     int m_flags;
     int m_borderInPixels;
@@ -475,7 +498,7 @@ protected:
     wxObject    *m_userData;
 
 private:
-    DECLARE_CLASS(wxSizerItem)
+    wxDECLARE_CLASS(wxSizerItem);
     wxDECLARE_NO_COPY_CLASS(wxSizerItem);
 };
 
@@ -729,7 +752,7 @@ protected:
     virtual wxSizerItem* DoInsert(size_t index, wxSizerItem *item);
 
 private:
-    DECLARE_CLASS(wxSizer)
+    wxDECLARE_CLASS(wxSizer);
 };
 
 //---------------------------------------------------------------------------
@@ -816,7 +839,7 @@ protected:
     }
 
 private:
-    DECLARE_CLASS(wxGridSizer)
+    wxDECLARE_CLASS(wxGridSizer);
 };
 
 //---------------------------------------------------------------------------
@@ -908,7 +931,7 @@ protected:
     wxSize m_calculatedMinSize;
 
 private:
-    DECLARE_CLASS(wxFlexGridSizer)
+    wxDECLARE_CLASS(wxFlexGridSizer);
     wxDECLARE_NO_COPY_CLASS(wxFlexGridSizer);
 };
 
@@ -941,6 +964,9 @@ public:
     virtual void RecalcSizes() wxOVERRIDE;
 
 protected:
+    // Only overridden to perform extra debugging checks.
+    virtual wxSizerItem *DoInsert(size_t index, wxSizerItem *item) wxOVERRIDE;
+
     // helpers for our code: this returns the component of the given wxSize in
     // the direction of the sizer and in the other direction, respectively
     int GetSizeInMajorDir(const wxSize& sz) const
@@ -998,7 +1024,7 @@ protected:
     wxSize m_minSize;
 
 private:
-    DECLARE_CLASS(wxBoxSizer)
+    wxDECLARE_CLASS(wxBoxSizer);
 };
 
 //---------------------------------------------------------------------------
@@ -1034,7 +1060,7 @@ protected:
     wxStaticBox   *m_staticBox;
 
 private:
-    DECLARE_CLASS(wxStaticBoxSizer)
+    wxDECLARE_CLASS(wxStaticBoxSizer);
     wxDECLARE_NO_COPY_CLASS(wxStaticBoxSizer);
 };
 
@@ -1086,7 +1112,7 @@ protected:
     wxButton *m_buttonHelp;         // wxID_HELP, wxID_CONTEXT_HELP
 
 private:
-    DECLARE_CLASS(wxStdDialogButtonSizer)
+    wxDECLARE_CLASS(wxStdDialogButtonSizer);
     wxDECLARE_NO_COPY_CLASS(wxStdDialogButtonSizer);
 };
 

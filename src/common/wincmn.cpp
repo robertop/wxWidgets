@@ -27,6 +27,7 @@
     #include "wx/string.h"
     #include "wx/log.h"
     #include "wx/intl.h"
+    #include "wx/math.h"
     #include "wx/frame.h"
     #include "wx/window.h"
     #include "wx/control.h"
@@ -41,6 +42,7 @@
     #include "wx/statusbr.h"
     #include "wx/toolbar.h"
     #include "wx/dcclient.h"
+    #include "wx/dcscreen.h"
     #include "wx/scrolbar.h"
     #include "wx/layout.h"
     #include "wx/sizer.h"
@@ -97,18 +99,22 @@ bool IsInCaptureStack(wxWindowBase* win);
 
 } // wxMouseCapture
 
+// We consider 96 DPI to be the standard value, this is correct at least for
+// MSW, but could conceivably need adjustment for the other platforms.
+static const int BASELINE_DPI = 96;
+
 // ----------------------------------------------------------------------------
 // static data
 // ----------------------------------------------------------------------------
 
 
-IMPLEMENT_ABSTRACT_CLASS(wxWindowBase, wxEvtHandler)
+wxIMPLEMENT_ABSTRACT_CLASS(wxWindowBase, wxEvtHandler);
 
 // ----------------------------------------------------------------------------
 // event table
 // ----------------------------------------------------------------------------
 
-BEGIN_EVENT_TABLE(wxWindowBase, wxEvtHandler)
+wxBEGIN_EVENT_TABLE(wxWindowBase, wxEvtHandler)
     EVT_SYS_COLOUR_CHANGED(wxWindowBase::OnSysColourChanged)
     EVT_INIT_DIALOG(wxWindowBase::OnInitDialog)
     EVT_MIDDLE_DOWN(wxWindowBase::OnMiddleClick)
@@ -118,7 +124,7 @@ BEGIN_EVENT_TABLE(wxWindowBase, wxEvtHandler)
 #endif // wxUSE_HELP
 
     EVT_SIZE(wxWindowBase::InternalOnSize)
-END_EVENT_TABLE()
+wxEND_EVENT_TABLE()
 
 // ============================================================================
 // implementation of the common functionality of the wxWindow class
@@ -251,7 +257,7 @@ wxCONSTRUCTOR_DUMMY(wxWindow)
 #else
 
 #ifndef __WXUNIVERSAL__
-IMPLEMENT_DYNAMIC_CLASS(wxWindow, wxWindowBase)
+wxIMPLEMENT_DYNAMIC_CLASS(wxWindow, wxWindowBase);
 #endif
 
 #endif
@@ -789,6 +795,17 @@ wxSize wxWindowBase::DoGetBestSize() const
     best.y += wxMax(0, diff.y);
 
     return best;
+}
+
+double wxWindowBase::GetContentScaleFactor() const
+{
+    // Currently we don't support per-monitor DPI, so it's useless to construct
+    // a DC associated with this window, just use the global value.
+    //
+    // We also use just the vertical component of the DPI because it's the one
+    // that counts most and, in practice, it's equal to the horizontal one
+    // anyhow.
+    return double(wxScreenDC().GetPPI().y) / BASELINE_DPI;
 }
 
 // helper of GetWindowBorderSize(): as many ports don't implement support for
@@ -2845,8 +2862,22 @@ void wxWindowBase::OnInternalIdle()
 }
 
 // ----------------------------------------------------------------------------
-// dialog units translations
+// DPI-independent pixels and dialog units translations
 // ----------------------------------------------------------------------------
+
+#ifndef wxHAVE_DPI_INDEPENDENT_PIXELS
+
+/* static */
+wxSize
+wxWindowBase::FromDIP(const wxSize& sz, const wxWindowBase* WXUNUSED(w))
+{
+    const wxSize dpi = wxScreenDC().GetPPI();
+
+    return wxSize(wxMulDivInt32(sz.x, dpi.x, BASELINE_DPI),
+                  wxMulDivInt32(sz.y, dpi.y, BASELINE_DPI));
+}
+
+#endif // !wxHAVE_DPI_INDEPENDENT_PIXELS
 
 // Windows' computes dialog units using average character width over upper-
 // and lower-case ASCII alphabet and not using the average character width

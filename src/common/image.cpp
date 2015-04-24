@@ -130,7 +130,7 @@ wxImageRefData::~wxImageRefData()
 
 #define M_IMGDATA static_cast<wxImageRefData*>(m_refData)
 
-IMPLEMENT_DYNAMIC_CLASS(wxImage, wxObject)
+wxIMPLEMENT_DYNAMIC_CLASS(wxImage, wxObject);
 
 bool wxImage::Create(const char* const* xpmData)
 {
@@ -2040,6 +2040,8 @@ void wxImage::ClearAlpha()
 {
     wxCHECK_RET( HasAlpha(), wxT("image already doesn't have an alpha channel") );
 
+    AllocExclusive();
+
     if ( !M_IMGDATA->m_staticAlpha )
         free( M_IMGDATA->m_alpha );
 
@@ -3107,7 +3109,7 @@ void wxImage::RotateHue(double angle)
 // wxImageHandler
 //-----------------------------------------------------------------------------
 
-IMPLEMENT_ABSTRACT_CLASS(wxImageHandler,wxObject)
+wxIMPLEMENT_ABSTRACT_CLASS(wxImageHandler, wxObject);
 
 #if wxUSE_STREAMS
 int wxImageHandler::GetImageCount( wxInputStream& stream )
@@ -3648,14 +3650,14 @@ wxImage wxImage::Rotate(double angle,
 
 class wxImageModule: public wxModule
 {
-DECLARE_DYNAMIC_CLASS(wxImageModule)
+    wxDECLARE_DYNAMIC_CLASS(wxImageModule);
 public:
     wxImageModule() {}
     bool OnInit() wxOVERRIDE { wxImage::InitStandardHandlers(); return true; }
     void OnExit() wxOVERRIDE { wxImage::CleanUpHandlers(); }
 };
 
-IMPLEMENT_DYNAMIC_CLASS(wxImageModule, wxModule)
+wxIMPLEMENT_DYNAMIC_CLASS(wxImageModule, wxModule);
 
 
 #endif // wxUSE_IMAGE

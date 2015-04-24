@@ -37,16 +37,16 @@
 
 //---------------------------------------------------------------------------
 
-IMPLEMENT_CLASS(wxSizerItem, wxObject)
-IMPLEMENT_CLASS(wxSizer, wxObject)
-IMPLEMENT_CLASS(wxGridSizer, wxSizer)
-IMPLEMENT_CLASS(wxFlexGridSizer, wxGridSizer)
-IMPLEMENT_CLASS(wxBoxSizer, wxSizer)
+wxIMPLEMENT_CLASS(wxSizerItem, wxObject);
+wxIMPLEMENT_CLASS(wxSizer, wxObject);
+wxIMPLEMENT_CLASS(wxGridSizer, wxSizer);
+wxIMPLEMENT_CLASS(wxFlexGridSizer, wxGridSizer);
+wxIMPLEMENT_CLASS(wxBoxSizer, wxSizer);
 #if wxUSE_STATBOX
-IMPLEMENT_CLASS(wxStaticBoxSizer, wxBoxSizer)
+wxIMPLEMENT_CLASS(wxStaticBoxSizer, wxBoxSizer);
 #endif
 #if wxUSE_BUTTON
-IMPLEMENT_CLASS(wxStdDialogButtonSizer, wxBoxSizer)
+wxIMPLEMENT_CLASS(wxStdDialogButtonSizer, wxBoxSizer);
 #endif
 
 WX_DEFINE_EXPORTED_LIST( wxSizerItemList )
@@ -85,6 +85,34 @@ WX_DEFINE_EXPORTED_LIST( wxSizerItemList )
 */
 
 // ----------------------------------------------------------------------------
+// wxSizerFlags
+// ----------------------------------------------------------------------------
+
+#ifdef wxNEEDS_BORDER_IN_PX
+
+int wxSizerFlags::ms_defaultBorderInPx = 0;
+
+/* static */
+int wxSizerFlags::DoGetDefaultBorderInPx()
+{
+    // Hard code 5px as it's the minimal border size between two controls, see
+    // the table at the bottom of
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/dn742486.aspx
+    //
+    // Of course, ideal would be to use the appropriate sizes for the borders
+    // between related and unrelated controls, as explained at the above URL,
+    // but we don't have a way to specify this in our API currently.
+    //
+    // We also have to use the DPI for the primary monitor here as we don't
+    // have any associated window, so this is wrong on systems using multiple
+    // monitors with different resolutions too -- but, again, without changes
+    // in the API, there is nothing we can do about this.
+    return wxWindow::FromDIP(5, NULL);
+}
+
+#endif // wxNEEDS_BORDER_IN_PX
+
+// ----------------------------------------------------------------------------
 // wxSizerItem
 // ----------------------------------------------------------------------------
 
@@ -114,7 +142,17 @@ static const int SIZER_FLAGS_MASK =
 
 #endif // wxDEBUG_LEVEL
 
-#define ASSERT_VALID_SIZER_FLAGS(f)  wxASSERT_VALID_FLAGS(f, SIZER_FLAGS_MASK)
+#define ASSERT_INCOMPATIBLE_NOT_USED_IMPL(f, f1, n1, f2, n2) \
+    wxASSERT_MSG(((f) & (f1 | f2)) != (f1 | f2), \
+                 n1 " and " n2 " can't be used together")
+
+#define ASSERT_INCOMPATIBLE_NOT_USED(f, f1, f2) \
+    ASSERT_INCOMPATIBLE_NOT_USED_IMPL(f, f1, #f1, f2, #f2)
+
+#define ASSERT_VALID_SIZER_FLAGS(f) \
+    wxASSERT_VALID_FLAGS(f, SIZER_FLAGS_MASK); \
+    ASSERT_INCOMPATIBLE_NOT_USED(f, wxALIGN_CENTRE_HORIZONTAL, wxALIGN_RIGHT); \
+    ASSERT_INCOMPATIBLE_NOT_USED(f, wxALIGN_CENTRE_VERTICAL, wxALIGN_BOTTOM)
 
 
 void wxSizerItem::Init(const wxSizerFlags& flags)
@@ -1396,6 +1434,18 @@ wxSizerItem *wxGridSizer::DoInsert(size_t index, wxSizerItem *item)
         }
     }
 
+    const int flags = item->GetFlag();
+    if ( flags & wxEXPAND )
+    {
+        // Check that expansion will happen in at least one of the directions.
+        wxASSERT_MSG
+        (
+            !(flags & (wxALIGN_BOTTOM | wxALIGN_CENTRE_VERTICAL)) ||
+                !(flags & (wxALIGN_RIGHT | wxALIGN_CENTRE_HORIZONTAL)),
+            wxS("wxEXPAND flag will be overridden by alignment flags")
+        );
+    }
+
     return wxSizer::DoInsert(index, item);
 }
 
@@ -1507,11 +1557,13 @@ void wxGridSizer::SetItemBounds( wxSizerItem *item, int x, int y, int w, int h )
     wxSize sz( item->GetMinSizeWithBorder() );
     int flag = item->GetFlag();
 
-    if ((flag & wxEXPAND) || (flag & wxSHAPED))
+    // wxSHAPED maintains aspect ratio and so always applies to both
+    // directions.
+    if ( flag & wxSHAPED )
     {
-       sz = wxSize(w, h);
+        sz = wxSize(w, h);
     }
-    else
+    else // Otherwise we handle each direction individually.
     {
         if (flag & wxALIGN_CENTER_HORIZONTAL)
         {
@@ -1521,6 +1573,10 @@ void wxGridSizer::SetItemBounds( wxSizerItem *item, int x, int y, int w, int h )
         {
             pt.x = x + (w - sz.x);
         }
+        else if (flag & wxEXPAND)
+        {
+            sz.x = w;
+        }
 
         if (flag & wxALIGN_CENTER_VERTICAL)
         {
@@ -1529,6 +1585,10 @@ void wxGridSizer::SetItemBounds( wxSizerItem *item, int x, int y, int w, int h )
         else if (flag & wxALIGN_BOTTOM)
         {
             pt.y = y + (h - sz.y);
+        }
+        else if ( flag & wxEXPAND )
+        {
+            sz.y = h;
         }
     }
 
@@ -1998,6 +2058,67 @@ void wxFlexGridSizer::RemoveGrowableRow( size_t idx )
 //---------------------------------------------------------------------------
 // wxBoxSizer
 //---------------------------------------------------------------------------
+
+wxSizerItem *wxBoxSizer::DoInsert(size_t index, wxSizerItem *item)
+{
+    const int flags = item->GetFlag();
+    if ( IsVertical() )
+    {
+        wxASSERT_MSG
+        (
+            !(flags & wxALIGN_BOTTOM),
+            wxS("Vertical alignment flags are ignored in vertical sizers")
+        );
+
+        // We need to accept wxALIGN_CENTRE_VERTICAL when it is combined with
+        // wxALIGN_CENTRE_HORIZONTAL because this is known as wxALIGN_CENTRE
+        // and we accept it historically in wxSizer API.
+        if ( !(flags & wxALIGN_CENTRE_HORIZONTAL) )
+        {
+            wxASSERT_MSG
+            (
+                !(flags & wxALIGN_CENTRE_VERTICAL),
+                wxS("Vertical alignment flags are ignored in vertical sizers")
+            );
+        }
+
+        if ( flags & wxEXPAND )
+        {
+            wxASSERT_MSG
+            (
+                !(flags & (wxALIGN_RIGHT | wxALIGN_CENTRE_HORIZONTAL)),
+                wxS("Horizontal alignment flags are ignored with wxEXPAND")
+            );
+        }
+    }
+    else // horizontal
+    {
+        wxASSERT_MSG
+        (
+            !(flags & wxALIGN_RIGHT),
+            wxS("Horizontal alignment flags are ignored in horizontal sizers")
+        );
+
+        if ( !(flags & wxALIGN_CENTRE_VERTICAL) )
+        {
+            wxASSERT_MSG
+            (
+                !(flags & wxALIGN_CENTRE_HORIZONTAL),
+                wxS("Horizontal alignment flags are ignored in horizontal sizers")
+            );
+        }
+
+        if ( flags & wxEXPAND )
+        {
+            wxASSERT_MSG(
+                !(flags & (wxALIGN_BOTTOM | wxALIGN_CENTRE_VERTICAL)),
+                wxS("Vertical alignment flags are ignored with wxEXPAND")
+            );
+        }
+    }
+
+    return wxSizer::DoInsert(index, item);
+}
 
 wxSizerItem *wxBoxSizer::AddSpacer(int size)
 {

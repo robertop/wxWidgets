@@ -533,30 +533,29 @@ public:
     bool GetPropertyValueAsBool( wxPGPropArg id ) const;
     double GetPropertyValueAsDouble( wxPGPropArg id ) const;
 
-#define wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL(TYPENAME, DEFVAL) \
+#define wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL(PGTypeName, DEFVAL) \
     wxPG_PROP_ARG_CALL_PROLOG_RETVAL(DEFVAL) \
-    wxString typeName(wxS(TYPENAME)); \
     wxVariant value = p->GetValue(); \
-    if ( value.GetType() != typeName ) \
+    if ( !value.IsType(PGTypeName) ) \
     { \
-        wxPGGetFailed(p, typeName); \
+        wxPGGetFailed(p, PGTypeName); \
         return DEFVAL; \
     }
 
-#define wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL_WFALLBACK(TYPENAME, DEFVAL) \
+#define wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL_WFALLBACK(PGTypeName, DEFVAL) \
     wxPG_PROP_ARG_CALL_PROLOG_RETVAL(DEFVAL) \
     wxVariant value = p->GetValue(); \
-    if ( value.GetType() != wxS(TYPENAME) ) \
+    if ( !value.IsType(PGTypeName) ) \
         return DEFVAL; \
 
     wxArrayString GetPropertyValueAsArrayString( wxPGPropArg id ) const
     {
-        wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL("arrstring",
+        wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL(wxPG_VARIANT_TYPE_ARRSTRING,
                                                    wxArrayString())
         return value.GetArrayString();
     }
 
-#ifdef wxLongLong_t
+#if defined(wxLongLong_t) && wxUSE_LONGLONG
     wxLongLong_t GetPropertyValueAsLongLong( wxPGPropArg id ) const
     {
         wxPG_PROP_ARG_CALL_PROLOG_RETVAL(0)
@@ -572,7 +571,7 @@ public:
 
     wxArrayInt GetPropertyValueAsArrayInt( wxPGPropArg id ) const
     {
-        wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL("wxArrayInt",
+        wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL(wxArrayInt_VariantType,
                                                    wxArrayInt())
         wxArrayInt arr;
         arr << value;
@@ -582,7 +581,7 @@ public:
 #if wxUSE_DATETIME
     wxDateTime GetPropertyValueAsDateTime( wxPGPropArg id ) const
     {
-        wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL("datetime",
+        wxPG_PROP_ID_GETPROPVAL_CALL_PROLOG_RETVAL(wxPG_VARIANT_TYPE_DATETIME,
                                                    wxDateTime())
         return value.GetDateTime();
     }
@@ -1218,19 +1217,35 @@ public:
         SetPropVal( id, v );
     }
 
+#if wxUSE_LONGLONG
 #ifdef wxLongLong_t
-    /** Sets value (wxLongLong&) of a property.
+    /** Sets value (wxLongLong_t&) of a property.
     */
-    void SetPropertyValue( wxPGPropArg id, wxLongLong_t value )
+    void SetPropertyValue(wxPGPropArg id, wxLongLong_t value)
     {
         wxVariant v = WXVARIANT(wxLongLong(value));
+        SetPropVal(id, v);
+    }
+#endif
+    void SetPropertyValue( wxPGPropArg id, wxLongLong value )
+    {
+        wxVariant v = WXVARIANT(value);
         SetPropVal( id, v );
     }
-    /** Sets value (wxULongLong&) of a property.
+#ifdef wxULongLong_t
+    /** Sets value (wxULongLong_t&) of a property.
     */
-    void SetPropertyValue( wxPGPropArg id, wxULongLong_t value )
+    void SetPropertyValue(wxPGPropArg id, wxULongLong_t value)
     {
         wxVariant v = WXVARIANT(wxULongLong(value));
+        SetPropVal(id, v);
+    }
+#endif
+    /** Sets value (wxULongLong&) of a property.
+    */
+    void SetPropertyValue( wxPGPropArg id, wxULongLong value )
+    {
+        wxVariant v = WXVARIANT(value);
         SetPropVal( id, v );
     }
 #endif

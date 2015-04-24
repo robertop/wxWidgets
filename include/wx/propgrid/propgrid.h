@@ -22,6 +22,7 @@
 #include "wx/tooltip.h"
 #include "wx/datetime.h"
 #include "wx/recguard.h"
+#include "wx/time.h" // needed for wxMilliClock_t
 
 #include "wx/propgrid/property.h"
 #include "wx/propgrid/propgridiface.h"
@@ -756,7 +757,7 @@ class WXDLLIMPEXP_PROPGRID wxPropertyGrid : public wxControl,
     friend class wxPropertyGridManager;
     friend class wxPGHeaderCtrl;
 
-    DECLARE_DYNAMIC_CLASS(wxPropertyGrid)
+    wxDECLARE_DYNAMIC_CLASS(wxPropertyGrid);
 public:
 
 #ifndef SWIG
@@ -1815,7 +1816,7 @@ protected:
     wxBitmap            *m_doubleBuffer;
 
     /** Local time ms when control was created. */
-    wxLongLong          m_timeCreated;
+    wxMilliClock_t      m_timeCreated;
 
     /** wxPGProperty::OnEvent can change value by setting this. */
     wxVariant           m_changeInEventValue;
@@ -2025,7 +2026,7 @@ protected:
     wxWindow*           m_tlpClosed;
 
     // Local time ms when tlp was closed.
-    wxLongLong          m_tlpClosedTime;
+    wxMilliClock_t      m_tlpClosedTime;
 
     // Sort function
     wxPGSortCallback    m_sortFunction;
@@ -2300,7 +2301,7 @@ private:
 
     bool ButtonTriggerKeyTest( int action, wxKeyEvent& event );
 
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_EVENT_TABLE();
 };
 
 // -----------------------------------------------------------------------
@@ -2605,7 +2606,7 @@ public:
 private:
     void Init();
     void OnPropertyGridSet();
-    DECLARE_DYNAMIC_CLASS(wxPropertyGridEvent)
+    wxDECLARE_DYNAMIC_CLASS(wxPropertyGridEvent);
 
     wxPGProperty*       m_property;
     wxPropertyGrid*     m_pg;

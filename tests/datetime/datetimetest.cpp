@@ -232,6 +232,7 @@ private:
         CPPUNIT_TEST( TestTimeArithmetics );
         CPPUNIT_TEST( TestDSTBug );
         CPPUNIT_TEST( TestDateOnly );
+        CPPUNIT_TEST( TestTranslateFromUnicodeFormat );
     CPPUNIT_TEST_SUITE_END();
 
     void TestLeapYears();
@@ -252,8 +253,9 @@ private:
     void TestTimeArithmetics();
     void TestDSTBug();
     void TestDateOnly();
+    void TestTranslateFromUnicodeFormat();
 
-    DECLARE_NO_COPY_CLASS(DateTimeTestCase)
+    wxDECLARE_NO_COPY_CLASS(DateTimeTestCase);
 };
 
 // register in the unnamed registry so that these tests are run by default
@@ -1445,6 +1447,44 @@ void DateTimeTestCase::TestDateOnly()
     CPPUNIT_ASSERT_EQUAL( wxDateTime(19, wxDateTime::Jan, 2007), dt );
 
     CPPUNIT_ASSERT_EQUAL( wxDateTime::Today(), wxDateTime::Now().GetDateOnly() );
+}
+
+void DateTimeTestCase::TestTranslateFromUnicodeFormat()
+{
+#if defined(__WINDOWS__) || defined(__WXOSX__)
+    // This function is defined in src/common/intl.cpp and as it is not public we
+    // need to declare it here explicitly.
+    WXDLLIMPEXP_BASE
+    wxString wxTranslateFromUnicodeFormat(const wxString& fmt);
+
+
+    // Test single quote handling...
+
+    CPPUNIT_ASSERT_EQUAL("",   wxTranslateFromUnicodeFormat("'"));
+    CPPUNIT_ASSERT_EQUAL("%H", wxTranslateFromUnicodeFormat("H'"));
+    CPPUNIT_ASSERT_EQUAL("H",  wxTranslateFromUnicodeFormat("'H"));
+
+    CPPUNIT_ASSERT_EQUAL("'",   wxTranslateFromUnicodeFormat("''"));
+    CPPUNIT_ASSERT_EQUAL("%H'", wxTranslateFromUnicodeFormat("H''"));
+    CPPUNIT_ASSERT_EQUAL("H",   wxTranslateFromUnicodeFormat("'H'"));
+    CPPUNIT_ASSERT_EQUAL("'%H", wxTranslateFromUnicodeFormat("''H"));
+
+    CPPUNIT_ASSERT_EQUAL("'",   wxTranslateFromUnicodeFormat("'''"));
+    CPPUNIT_ASSERT_EQUAL("%H'", wxTranslateFromUnicodeFormat("H'''"));
+    CPPUNIT_ASSERT_EQUAL("H'",  wxTranslateFromUnicodeFormat("'H''"));
+    CPPUNIT_ASSERT_EQUAL("'%H", wxTranslateFromUnicodeFormat("''H'"));
+    CPPUNIT_ASSERT_EQUAL("'H",  wxTranslateFromUnicodeFormat("'''H"));
+
+    CPPUNIT_ASSERT_EQUAL("''",   wxTranslateFromUnicodeFormat("''''"));
+    CPPUNIT_ASSERT_EQUAL("%H''", wxTranslateFromUnicodeFormat("H''''"));
+    CPPUNIT_ASSERT_EQUAL("H'",   wxTranslateFromUnicodeFormat("'H'''"));
+    CPPUNIT_ASSERT_EQUAL("'%H'", wxTranslateFromUnicodeFormat("''H''"));
+    CPPUNIT_ASSERT_EQUAL("'H",   wxTranslateFromUnicodeFormat("'''H'"));
+    CPPUNIT_ASSERT_EQUAL("''%H", wxTranslateFromUnicodeFormat("''''H"));
+
+    CPPUNIT_ASSERT_EQUAL("'%H o'clock: It's about time'",
+        wxTranslateFromUnicodeFormat("''H 'o''clock: It''s about time'''"));
+#endif // ports having wxTranslateFromUnicodeFormat()
 }
 
 #endif // wxUSE_DATETIME

@@ -433,6 +433,14 @@
 #   endif
 #endif /* !defined(wxUSE_ADDREMOVECTRL) */
 
+#ifndef wxUSE_ACTIVITYINDICATOR
+#   ifdef wxABORT_ON_CONFIG_ERROR
+#       error "wxUSE_ACTIVITYINDICATOR must be defined, please read comment near the top of this file."
+#   else
+#       define wxUSE_ACTIVITYINDICATOR 0
+#   endif
+#endif /* !defined(wxUSE_ACTIVITYINDICATOR) */
+
 #ifndef wxUSE_ANIMATIONCTRL
 #   ifdef wxABORT_ON_CONFIG_ERROR
 #       error "wxUSE_ANIMATIONCTRL must be defined, please read comment near the top of this file."
@@ -1530,6 +1538,17 @@
 #    endif
 #endif /* controls */
 
+#if wxUSE_ADDREMOVECTRL
+#   if !wxUSE_BMPBUTTON
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxUSE_ADDREMOVECTRL requires wxUSE_BMPBUTTON"
+#       else
+#           undef wxUSE_ADDREMOVECTRL
+#           define wxUSE_ADDREMOVECTRL 0
+#       endif
+#   endif
+#endif /* wxUSE_ADDREMOVECTRL */
+
 #if wxUSE_BMPBUTTON
 #    if !wxUSE_BUTTON
 #        ifdef wxABORT_ON_CONFIG_ERROR
@@ -2238,6 +2257,47 @@
 #       endif
 #   endif
 #endif /* wxUSE_PREFERENCES_EDITOR */
+
+#if wxUSE_MEDIACTRL
+#   if !wxUSE_LONGLONG
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxMediaCtrl requires wxUSE_LONLONG"
+#       else
+#           undef wxUSE_LONLONG
+#           define wxUSE_LONLONG 1
+#       endif
+#   endif
+#endif /* wxUSE_MEDIACTRL */
+
+#if wxUSE_STC
+#   if !wxUSE_STOPWATCH
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxStyledTextCtrl requires wxUSE_STOPWATCH"
+#       else
+#           undef wxUSE_STC
+#           define wxUSE_STC 0
+#       endif
+#   endif
+#endif /* wxUSE_STC */
+
+#if wxUSE_RICHTEXT
+#   if !wxUSE_HTML
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxRichTextCtrl requires wxUSE_HTML"
+#       else
+#           undef wxUSE_RICHTEXT
+#           define wxUSE_RICHTEXT 0
+#       endif
+#   endif
+#   if !wxUSE_LONGLONG
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxRichTextCtrl requires wxUSE_LONLONG"
+#       else
+#           undef wxUSE_LONLONG
+#           define wxUSE_LONLONG 1
+#       endif
+#   endif
+#endif /* wxUSE_RICHTEXT */
 
 #endif /* wxUSE_GUI */
 

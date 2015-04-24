@@ -186,6 +186,7 @@ public:
     void OnEnableDisable( wxCommandEvent& event );
     void OnSetReadOnly( wxCommandEvent& event );
     void OnHide( wxCommandEvent& event );
+    void OnBoolCheckbox( wxCommandEvent& evt );
     void OnSetBackgroundColour( wxCommandEvent& event );
     void OnClearModifyStatusClick( wxCommandEvent& event );
     void OnFreezeClick( wxCommandEvent& event );
@@ -275,7 +276,7 @@ private:
     FormMain    *Form1;
 };
 
-DECLARE_APP(cxApplication)
+wxDECLARE_APP(cxApplication);
 
 // -----------------------------------------------------------------------
 

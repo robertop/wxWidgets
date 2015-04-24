@@ -533,9 +533,8 @@ public:
 
     // returns the magnification of the content of this window
     // eg 2.0 for a window on a retina screen
-    virtual double GetContentScaleFactor() const
-    { return 1.0; }
-    
+    virtual double GetContentScaleFactor() const;
+
     // return the size of the left/right and top/bottom borders in x and y
     // components of the result respectively
     virtual wxSize GetWindowBorderSize() const;
@@ -951,8 +950,39 @@ public:
 #endif // wxUSE_HOTKEY
 
 
-    // dialog units translations
-    // -------------------------
+    // translation between different units
+    // -----------------------------------
+
+        // DPI-independent pixels, or DIPs, are pixel values for the standard
+        // 96 DPI display, they are scaled to take the current resolution into
+        // account (i.e. multiplied by the same factor as returned by
+        // GetContentScaleFactor()) if necessary for the current platform.
+        //
+        // Currently the conversion factor is the same for all windows but this
+        // will change with the monitor-specific resolution support in the
+        // future, so prefer using the non-static member functions.
+        //
+        // Similarly, currently in practice the factor is the same in both
+        // horizontal and vertical directions, but this could, in principle,
+        // change too, so prefer using the overloads taking wxPoint or wxSize.
+
+    static wxSize FromDIP(const wxSize& sz, const wxWindowBase* w);
+    static wxPoint FromDIP(const wxPoint& pt, const wxWindowBase* w)
+    {
+        const wxSize sz = FromDIP(wxSize(pt.x, pt.y), w);
+        return wxPoint(sz.x, sz.y);
+    }
+    static int FromDIP(int d, const wxWindowBase* w)
+    {
+        return FromDIP(wxSize(d, 0), w).x;
+    }
+
+    wxSize FromDIP(const wxSize& sz) const { return FromDIP(sz, this); }
+    wxPoint FromDIP(const wxPoint& pt) const { return FromDIP(pt, this); }
+    int FromDIP(int d) const { return FromDIP(d, this); }
+
+
+        // Dialog units are based on the size of the current font.
 
     wxPoint ConvertPixelsToDialog( const wxPoint& pt ) const;
     wxPoint ConvertDialogToPixels( const wxPoint& pt ) const;
@@ -1842,9 +1872,9 @@ private:
     unsigned int m_freezeCount;
 
 
-    DECLARE_ABSTRACT_CLASS(wxWindowBase)
+    wxDECLARE_ABSTRACT_CLASS(wxWindowBase);
     wxDECLARE_NO_COPY_CLASS(wxWindowBase);
-    DECLARE_EVENT_TABLE()
+    wxDECLARE_EVENT_TABLE();
 };
 
 
@@ -1892,6 +1922,9 @@ inline void wxWindowBase::SetInitialBestSize(const wxSize& size)
         #define wxWindowGTK wxWindow
     #endif // wxUniv
     #include "wx/gtk/window.h"
+    #ifdef __WXGTK3__
+        #define wxHAVE_DPI_INDEPENDENT_PIXELS
+    #endif
 #elif defined(__WXGTK__)
     #ifdef __WXUNIVERSAL__
         #define wxWindowNative wxWindowGTK
@@ -1916,6 +1949,7 @@ inline void wxWindowBase::SetInitialBestSize(const wxSize& size)
         #define wxWindowMac wxWindow
     #endif // wxUniv
     #include "wx/osx/window.h"
+    #define wxHAVE_DPI_INDEPENDENT_PIXELS
 #elif defined(__WXQT__)
     #ifdef __WXUNIVERSAL__
         #define wxWindowNative wxWindowQt
@@ -1944,6 +1978,18 @@ inline wxWindow *wxWindowBase::GetGrandParent() const
 {
     return m_parent ? m_parent->GetParent() : NULL;
 }
+
+#ifdef wxHAVE_DPI_INDEPENDENT_PIXELS
+
+// FromDIP() becomes trivial in this case, so make it inline to avoid overhead.
+/* static */
+inline wxSize
+wxWindowBase::FromDIP(const wxSize& sz, const wxWindowBase* WXUNUSED(w))
+{
+    return sz;
+}
+
+#endif // wxHAVE_DPI_INDEPENDENT_PIXELS
 
 // ----------------------------------------------------------------------------
 // global functions
