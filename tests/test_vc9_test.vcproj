@@ -991,10 +991,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\fswatcher\fswatchertest.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\uris\ftp.cpp"
 				>
 			</File>

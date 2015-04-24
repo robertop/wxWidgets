@@ -404,6 +404,9 @@
 				RelativePath=".\controls\frametest.cpp">
 			</File>
 			<File
+				RelativePath=".\fswatcher\fswatchertest.cpp">
+			</File>
+			<File
 				RelativePath=".\misc\garbage.cpp">
 			</File>
 			<File

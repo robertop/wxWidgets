@@ -55,7 +55,6 @@ TEST_OBJECTS =  \
 	$(OBJS)\test_filesystest.o \
 	$(OBJS)\test_fontmaptest.o \
 	$(OBJS)\test_formatconvertertest.o \
-	$(OBJS)\test_fswatchertest.o \
 	$(OBJS)\test_hashes.o \
 	$(OBJS)\test_output.o \
 	$(OBJS)\test_input.o \
@@ -216,6 +215,7 @@ TEST_GUI_OBJECTS =  \
 	$(OBJS)\test_gui_keyboard.o \
 	$(OBJS)\test_gui_exec.o \
 	$(OBJS)\test_gui_fonttest.o \
+	$(OBJS)\test_gui_fswatchertest.o \
 	$(OBJS)\test_gui_image.o \
 	$(OBJS)\test_gui_rawbmp.o \
 	$(OBJS)\test_gui_htmlparser.o \
@@ -583,9 +583,6 @@ $(OBJS)\test_fontmaptest.o: ./fontmap/fontmaptest.cpp
 	$(CXX) -c -o $@ $(TEST_CXXFLAGS) $(CPPDEPS) $<
 
 $(OBJS)\test_formatconvertertest.o: ./formatconverter/formatconvertertest.cpp
-	$(CXX) -c -o $@ $(TEST_CXXFLAGS) $(CPPDEPS) $<
-
-$(OBJS)\test_fswatchertest.o: ./fswatcher/fswatchertest.cpp
 	$(CXX) -c -o $@ $(TEST_CXXFLAGS) $(CPPDEPS) $<
 
 $(OBJS)\test_hashes.o: ./hashes/hashes.cpp
@@ -994,6 +991,9 @@ $(OBJS)\test_gui_exec.o: ./exec/exec.cpp
 	$(CXX) -c -o $@ $(TEST_GUI_CXXFLAGS) $(CPPDEPS) $<
 
 $(OBJS)\test_gui_fonttest.o: ./font/fonttest.cpp
+	$(CXX) -c -o $@ $(TEST_GUI_CXXFLAGS) $(CPPDEPS) $<
+
+$(OBJS)\test_gui_fswatchertest.o: ./fswatcher/fswatchertest.cpp
 	$(CXX) -c -o $@ $(TEST_GUI_CXXFLAGS) $(CPPDEPS) $<
 
 $(OBJS)\test_gui_image.o: ./image/image.cpp
