@@ -21,21 +21,21 @@
 #include "wx/osx/core/cfstring.h"
 #include <CoreFoundation/CoreFoundation.h>
 
-// a small class that we will give the fs events 
+// a small class that we will give the fs events
 // framework, which will be forwarded to the function
 // that gets called when files change.
 class wxFSEventWatcherContext
 {
 public:
-  
+
     // Watcher pointer will not be owned by this class.
-    wxFSEventWatcherContext(wxFsEventsFileSystemWatcher* watcher, 
+    wxFSEventWatcherContext(wxFsEventsFileSystemWatcher* watcher,
     int watcherEventFlags,
     const wxString& filespec)
     : m_watcher(watcher)
     , m_watcherEventFlags(watcherEventFlags)
     , m_filespec(filespec)
-    {    
+    {
 
     }
 
@@ -53,27 +53,27 @@ public:
         {
             return true;
         }
-        
+
         if ( (m_watcherEventFlags & eventFlags) == 0 )
         {
         // event handler does not want to see this event
             return false;
         }
-        
-        return m_filespec.empty() || 
+
+        return m_filespec.empty() ||
             wxMatchWild(m_filespec, eventFileName.GetFullName());
     }
-    
+
     wxFsEventsFileSystemWatcher* m_watcher;
-    
+
     // the event flags that the event handler
     // desires to be notified of
     int m_watcherEventFlags;
-    
+
     // the filespec that the event handler
     // desires to be notified of
     wxString m_filespec;
-    
+
 private:
 
     wxDECLARE_NO_COPY_CLASS(wxFSEventWatcherContext);
@@ -83,12 +83,12 @@ private:
 // to wxFSW_EVENT_* flags.
 // warning and msg are out parameters, filled in when
 // there is an error in the stream
-static int wxFSEventsToWatcherFlags(FSEventStreamEventFlags flags, 
+static int wxFSEventsToWatcherFlags(FSEventStreamEventFlags flags,
 wxFSWWarningType& warning, wxString& msg)
 {
     msg = "";
     warning = wxFSW_WARNING_NONE;
-    
+
     // see https://developer.apple.com/library/mac/documentation/Darwin/Reference/FSEvents_Ref/index.html
     // for event flag meanings
     int ret = 0;
@@ -98,14 +98,14 @@ wxFSWWarningType& warning, wxString& msg)
         | kFSEventStreamEventFlagKernelDropped
         | kFSEventStreamEventFlagMount
     ;
-    
+
     int errors = kFSEventStreamEventFlagRootChanged;
-    
+
     // the following flags are not handled
     // kFSEventStreamEventFlagHistoryDone (we never ask for old events)
     // kFSEventStreamEventFlagEventIdsWrapped ( we don't keep track nor
     //  expose event IDs)
-    
+
     int created = kFSEventStreamEventFlagItemCreated;
     int deleted = kFSEventStreamEventFlagItemRemoved;
     int renamed = kFSEventStreamEventFlagItemRenamed;
@@ -114,7 +114,7 @@ wxFSWWarningType& warning, wxString& msg)
         | kFSEventStreamEventFlagItemFinderInfoMod
         | kFSEventStreamEventFlagItemInodeMetaMod
         | kFSEventStreamEventFlagItemXattrMod;
-    
+
     if ( created & flags )
     {
         ret |= wxFSW_EVENT_CREATE;
@@ -122,7 +122,7 @@ wxFSWWarningType& warning, wxString& msg)
     if ( deleted & flags )
     {
         ret |= wxFSW_EVENT_DELETE;
-    } 
+    }
     if ( renamed & flags )
     {
         ret |= wxFSW_EVENT_RENAME;
@@ -167,14 +167,14 @@ wxFSWWarningType& warning, wxString& msg)
         ret |= wxFSW_EVENT_ERROR;
         msg = "Path being watched has been renamed";
     }
-    
+
     //  don't think that fs events tells us about wxFSW_EVENT_ACCESS
     return ret;
 }
-    
-// Fills in eventFileName appropriately based on whether the 
+
+// Fills in eventFileName appropriately based on whether the
 // event was on a file or a directory
-static void FileNameFromEvent(wxFileName& eventFileName, char* path, 
+static void FileNameFromEvent(wxFileName& eventFileName, char* path,
     FSEventStreamEventFlags flags)
 {
     wxString strPath(path);
@@ -182,19 +182,19 @@ static void FileNameFromEvent(wxFileName& eventFileName, char* path,
     {
         eventFileName.Assign(strPath);
     }
-    if ( flags & kFSEventStreamEventFlagItemIsDir ) 
-    { 
+    if ( flags & kFSEventStreamEventFlagItemIsDir )
+    {
         eventFileName.AssignDir(strPath);
     }
 }
 
 // this is the function that the FsEvents framework
 // will call to notify us that a file has been changed
-static void wxFSEventCallback(ConstFSEventStreamRef WXUNUSED(streamRef), void *clientCallBackInfo, 
-    size_t numEvents, void *eventPaths, const FSEventStreamEventFlags eventFlags[], 
+static void wxFSEventCallback(ConstFSEventStreamRef WXUNUSED(streamRef), void *clientCallBackInfo,
+    size_t numEvents, void *eventPaths, const FSEventStreamEventFlags eventFlags[],
     const FSEventStreamEventId WXUNUSED(eventIds)[])
 {
-    wxFSEventWatcherContext* context = 
+    wxFSEventWatcherContext* context =
         (wxFSEventWatcherContext*) clientCallBackInfo;
 
     char** paths = (char**) eventPaths;
@@ -212,8 +212,8 @@ static void wxFSEventCallback(ConstFSEventStreamRef WXUNUSED(streamRef), void *c
         {
             // this is a naive way of looking for file renames
             // wx presents a renames with a from and to paths
-            // but fs events events do not give us this (it only 
-            // provides that a file was renamed, not what the new 
+            // but fs events events do not give us this (it only
+            // provides that a file was renamed, not what the new
             // name is)
             // we deduce the old and new paths by looking for consecutive
             // renames. This is very naive and won't catch simulatenous
@@ -233,7 +233,7 @@ static void wxFSEventCallback(ConstFSEventStreamRef WXUNUSED(streamRef), void *c
             {
                 context->m_watcher->PostChange(eventFileName, eventFileName, wxEventFlags);
             }
-            else 
+            else
             {
                 // this is a "rename" event that we only saw once, meaning that
                 // a file was renamed to somewhere inside the watched tree
@@ -241,12 +241,12 @@ static void wxFSEventCallback(ConstFSEventStreamRef WXUNUSED(streamRef), void *c
                 if (!eventFileName.IsDir())
                 {
                     int fileEventType = eventFileName.FileExists() ? wxFSW_EVENT_CREATE : wxFSW_EVENT_DELETE;
-                    context->m_watcher->PostChange(eventFileName, eventFileName, fileEventType); 
+                    context->m_watcher->PostChange(eventFileName, eventFileName, fileEventType);
                 }
                 if (eventFileName.IsDir())
                 {
                     int dirEventType = eventFileName.DirExists() ? wxFSW_EVENT_CREATE : wxFSW_EVENT_DELETE;
-                    context->m_watcher->PostChange(eventFileName, eventFileName, dirEventType); 
+                    context->m_watcher->PostChange(eventFileName, eventFileName, dirEventType);
                 }
             }
 
@@ -257,7 +257,7 @@ static void wxFSEventCallback(ConstFSEventStreamRef WXUNUSED(streamRef), void *c
 
             // a single rename (without the second rename) may be due
             // to the file being renamed into a directory outside of the
-            // watch path    
+            // watch path
             lastWxEventFlags = wxEventFlags;
             lastEventFileName = eventFileName;
         }
@@ -290,7 +290,7 @@ wxFsEventsFileSystemWatcher::~wxFsEventsFileSystemWatcher()
 }
 
 bool wxFsEventsFileSystemWatcher::AddTree(const wxFileName& path, int events,
-    const wxString& filespec) 
+    const wxString& filespec)
 {
     if (!path.DirExists())
     {
@@ -303,7 +303,7 @@ bool wxFsEventsFileSystemWatcher::AddTree(const wxFileName& path, int events,
     }
     CFRunLoopRef cfLoop = CFRunLoopGetCurrent();
     wxASSERT_MSG(
-        cfLoop, 
+        cfLoop,
         "there must be a current event loop; this file watcher needs it."
     );
     if ( ! cfLoop )
@@ -335,7 +335,7 @@ bool wxFsEventsFileSystemWatcher::AddTree(const wxFileName& path, int events,
     ctx.info = watcherContext;
     ctx.retain = NULL;
     ctx.release = &wxDeleteContext;
-    ctx.copyDescription = NULL;  
+    ctx.copyDescription = NULL;
     CFTimeInterval latency = 0.2;
 
     wxMacUniCharBuffer pathChars(path.GetPath());
@@ -347,13 +347,13 @@ bool wxFsEventsFileSystemWatcher::AddTree(const wxFileName& path, int events,
     CFArrayRef pathRefs = CFArrayCreate(
         kCFAllocatorDefault, (const void**)&pathRef, 1, NULL
     );
-    FSEventStreamCreateFlags flags = kFSEventStreamCreateFlagWatchRoot 
+    FSEventStreamCreateFlags flags = kFSEventStreamCreateFlagWatchRoot
         | kFSEventStreamCreateFlagFileEvents;
 
     FSEventStreamRef stream = FSEventStreamCreate(
-        kCFAllocatorDefault, 
-        &wxFSEventCallback, 
-        &ctx, 
+        kCFAllocatorDefault,
+        &wxFSEventCallback,
+        &ctx,
         pathRefs, kFSEventStreamEventIdSinceNow,
         latency, flags);
     bool started = false;
@@ -375,7 +375,7 @@ bool wxFsEventsFileSystemWatcher::AddTree(const wxFileName& path, int events,
     return started;
 }
 
-bool wxFsEventsFileSystemWatcher::RemoveTree(const wxFileName& path) 
+bool wxFsEventsFileSystemWatcher::RemoveTree(const wxFileName& path)
 {
     wxString canonical = GetCanonicalPath(path);
     if ( canonical.empty() )
@@ -395,7 +395,7 @@ bool wxFsEventsFileSystemWatcher::RemoveTree(const wxFileName& path)
             wxKqueueFileSystemWatcher::Remove(dirsWatched[i]);
         }
     }
-    
+
     FSEventStreamRefMap::iterator it = m_streams.find(canonical);
     bool removed = false;
     if ( it != m_streams.end() )
@@ -409,7 +409,7 @@ bool wxFsEventsFileSystemWatcher::RemoveTree(const wxFileName& path)
     return removed;
 }
 
-bool wxFsEventsFileSystemWatcher::RemoveAll() 
+bool wxFsEventsFileSystemWatcher::RemoveAll()
 {
     // remove all watches created with Add()
     bool ret = wxKqueueFileSystemWatcher::RemoveAll();
@@ -426,7 +426,7 @@ bool wxFsEventsFileSystemWatcher::RemoveAll()
     return ret;
 }
 
-void wxFsEventsFileSystemWatcher::PostChange(const wxFileName& oldFileName, 
+void wxFsEventsFileSystemWatcher::PostChange(const wxFileName& oldFileName,
     const wxFileName& newFileName, int event)
 {
     wxASSERT_MSG(this->GetOwner(), "owner must exist");
@@ -437,7 +437,7 @@ void wxFsEventsFileSystemWatcher::PostChange(const wxFileName& oldFileName,
 
     // fs events flags are a bit mask, but wx FSW events
     // are not, meaning that fs event flag
-    // might be 
+    // might be
     // kFSEventStreamEventFlagItemCreated | kFSEventStreamEventFlagItemInodeMetaMod
     // this means we must send 2 events not 1
     int allEvents[6] = {
@@ -446,7 +446,7 @@ void wxFsEventsFileSystemWatcher::PostChange(const wxFileName& oldFileName,
         wxFSW_EVENT_RENAME,
         wxFSW_EVENT_MODIFY,
         wxFSW_EVENT_ACCESS,
-        wxFSW_EVENT_ATTRIB    
+        wxFSW_EVENT_ATTRIB
     };
 
     for ( int i = 0; i < 6; i++ )
@@ -461,7 +461,7 @@ void wxFsEventsFileSystemWatcher::PostChange(const wxFileName& oldFileName,
     }
 }
 
-void wxFsEventsFileSystemWatcher::PostWarning(wxFSWWarningType warning, 
+void wxFsEventsFileSystemWatcher::PostWarning(wxFSWWarningType warning,
     const wxString& msg)
 {
     wxFileSystemWatcherEvent* evt = new wxFileSystemWatcherEvent(

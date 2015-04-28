@@ -78,10 +78,10 @@ public:
         Additionally a file mask can be specified to include only files
         matching that particular mask.
 
-        This method is implemented efficiently on MSW and Mac OS X >= 10.7, but 
-        should be used with care on other platforms for directories with lots 
-        of children (e.g. the root directory) as it calls Add() for each 
-        subdirectory, potentially creating a lot of watches and taking a long 
+        This method is implemented efficiently on MSW and Mac OS X >= 10.7, but
+        should be used with care on other platforms for directories with lots
+        of children (e.g. the root directory) as it calls Add() for each
+        subdirectory, potentially creating a lot of watches and taking a long
         time to execute.
 
         Note that on platforms that use symbolic links, you will probably want
@@ -244,7 +244,7 @@ enum wxFSWFlags
         followed by a ::wxFSW_EVENT_MODIFY for the new file.
 
         Under OS X this event is only detected when watching entire trees. When
-        watching directories, separate ::wxFSW_EVENT_CREATE and 
+        watching directories, separate ::wxFSW_EVENT_CREATE and
         ::wxFSW_EVENT_DELETE events are detected instead.
      */
     wxFSW_EVENT_RENAME = 0x04,

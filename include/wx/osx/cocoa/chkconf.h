@@ -50,7 +50,7 @@
 #define wxOSX_USE_QUICKTIME 0
 #define wxOSX_USE_AUDIOTOOLBOX 1
 
-/* 
+/*
    Use the more efficient FS Events framework instead of kqueue
    events for file system watcher, but only on Mac OS X >= 10.7 since that version
    introduced a flag that allows watching files as well
