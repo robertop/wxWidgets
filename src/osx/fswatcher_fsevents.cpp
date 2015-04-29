@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////
-// Name:        wx/osx/fswatcher_fsevents.cpp
+// Name:        src/osx/fswatcher_fsevents.cpp
 // Purpose:     File System watcher that uses the FS Events framework
 //              of Mac OS X to efficiently watch trees
 // Author:      Roberto Perpuly
