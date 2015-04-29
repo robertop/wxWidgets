@@ -15,7 +15,7 @@
     #pragma hdrstop
 #endif
 
-#if wxUSE_FSWATCHER
+#if wxUSE_FSWATCHER && defined(wxHAVE_FSEVENTS_FILE_NOTIFICATIONS)
 
 #include "wx/fswatcher.h"
 #include "wx/osx/core/cfstring.h"
