@@ -34,7 +34,7 @@ Changes in behaviour which may result in build errors
   need to request it explicitly, e.g. `wx-config --libs std,webview`.
 
 
-3.1.0: (released 2014-xx-xx)
+3.1.0: (released 2015-xx-xx)
 ----------------------------
 
 - Many improvements for high DPI monitors support, notably XRC now interprets
@@ -47,6 +47,7 @@ All:
 
 - Allow calling wxItemContainer::Add() and similar with std::vector<> argument.
 - Add "%z" support to printf()-like functions like wxString::Format() (RIVDSL).
+- Add DOCTYPE support to wxXmlDocument (Nick Matthews).
 - Add wxPowerResourceBlocker (Tobias Taschner).
 - Add wxApp::StoreCurrentException() and RethrowStoredException() and implement
   their functionality by default when using C++11 compiler.
@@ -66,6 +67,7 @@ All:
 
 Unix:
 
+- Fix bug in wxExecute() if child exited too quickly (Kevin B. McCarty).
 - Add --disable-sys-libs configure option.
 
 All (GUI):
@@ -113,12 +115,15 @@ All (GUI):
 - Harmonize wxMenuEvent handling between all major ports.
 - Fix wxPGChoices copy ctor (Snoits).
 - Show how to handle files on command line in docview sample (Neil Mayhew).
+- Improve wxFileCtrl::SetFilename() and SetPath() (Kevin B. McCarty).
+- Fix a crash when using animated GIFs in wxHtmlListBox.
 
 wxGTK:
 
 - Support building wxGTK3 under Windows (Kolya Kosenko).
 - Fix vertical cell alignment in wxDataViewCtrl.
 - Fix clearing of wxComboBox with wxCB_READONLY (Chuddah).
+- Fix setting "pressed" bitmap for wxToggleButton (Kevin B. McCarty).
 - Fix GTK+ warnings for wxFileDialog with wxFD_MULTIPLE style.
 
 wxMSW:
@@ -153,6 +158,7 @@ wxMSW:
 wxOSX/Cocoa:
 
 - Implement wxWindow::Disable() for non-native controls too (Steve Browne).
+- Fix wxEVT_CHAR for non-BMP Unicode characters (ARATA Mizuki).
 - Add support for wxEVT_COMBOBOX_DROPDOWN and wxEVT_COMBOBOX_CLOSEUP
   events (Igor Korot).
 - Implement strike-through support in wxFont (Igor Korot).

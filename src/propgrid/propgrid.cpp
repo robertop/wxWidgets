@@ -1080,8 +1080,7 @@ void wxPropertyGrid::DoEndLabelEdit( bool commit, int selFlags )
             // for the same property and the same label.
             if ( m_processedEvent &&
                  m_processedEvent->GetEventType() == wxEVT_PG_LABEL_EDIT_ENDING &&
-                 m_processedEvent->GetProperty() == prop &&
-                 m_processedEvent->GetColumn() == m_selColumn)
+                 m_processedEvent->GetProperty() == prop )
             {
                 return;
             }
@@ -1099,15 +1098,15 @@ void wxPropertyGrid::DoEndLabelEdit( bool commit, int selFlags )
         {
             cell = &prop->GetCell(labelColIdx);
         }
-        else
+        else if ( labelColIdx != 0 )
         {
-            if ( labelColIdx == 0 )
-                prop->SetLabel(text);
-            else
-                cell = &prop->GetOrCreateCell(labelColIdx);
+            cell = &prop->GetOrCreateCell(labelColIdx);
         }
 
-        if ( cell )
+       if ( labelColIdx == 0 )
+            prop->SetLabel(text);
+
+       if ( cell && cell->HasText() )
             cell->SetText(text);
     }
 
