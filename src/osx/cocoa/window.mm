@@ -1164,13 +1164,35 @@ void wxOSX_controlDoubleAction(NSView* self, SEL _cmd, id sender)
 }
 
 #if wxUSE_DRAG_AND_DROP
-unsigned int wxWidgetCocoaImpl::draggingEntered(void* s, WXWidget WXUNUSED(slf), void *WXUNUSED(_cmd))
+
+namespace
+{
+
+unsigned int wxOnDraggingEnteredOrUpdated(wxWidgetCocoaImpl* viewImpl,
+    void *s, bool entered)
 {
     id <NSDraggingInfo>sender = (id <NSDraggingInfo>) s;
     NSPasteboard *pboard = [sender draggingPasteboard];
+    /*
+    sourceDragMask contains a flag field with drag operations permitted by
+    the source:
+    NSDragOperationCopy = 1,
+    NSDragOperationLink = 2,
+    NSDragOperationGeneric = 4,
+    NSDragOperationPrivate = 8,
+    NSDragOperationMove = 16,
+    NSDragOperationDelete = 32
+
+    By default, pressing modifier keys changes sourceDragMask:
+    Control ANDs it with NSDragOperationLink (2)
+    Option ANDs it with NSDragOperationCopy (1)
+    Command ANDs it with NSDragOperationGeneric (4)
+
+    The end result can be a mask that's 0 (NSDragOperationNone).
+    */
     NSDragOperation sourceDragMask = [sender draggingSourceOperationMask];
 
-    wxWindow* wxpeer = GetWXPeer();
+    wxWindow* wxpeer = viewImpl->GetWXPeer();
     if ( wxpeer == NULL )
         return NSDragOperationNone;
 
@@ -1178,21 +1200,46 @@ unsigned int wxWidgetCocoaImpl::draggingEntered(void* s, WXWidget WXUNUSED(slf),
     if ( target == NULL )
         return NSDragOperationNone;
 
-    wxDragResult result = wxDragNone;
-    NSPoint nspoint = [m_osxView convertPoint:[sender draggingLocation] fromView:nil];
-    wxPoint pt = wxFromNSPoint( m_osxView, nspoint );
+    NSPoint nspoint = [viewImpl->GetWXWidget() convertPoint:[sender draggingLocation] fromView:nil];
+    wxPoint pt = wxFromNSPoint( viewImpl->GetWXWidget(), nspoint );
 
-    if ( sourceDragMask & NSDragOperationLink )
-        result = wxDragLink;
-    else if ( sourceDragMask & NSDragOperationCopy )
-        result = wxDragCopy;
-    else if ( sourceDragMask & NSDragOperationMove )
+    /*
+    Convert the incoming mask to wxDragResult. This is a lossy conversion
+    because wxDragResult contains a single value and not a flag field.
+    When dragging the bottom part of the DND sample ("Drag text from here!")
+    sourceDragMask contains copy, link, generic, and private flags. Formerly
+    this would result in wxDragLink which is not what is expected for text.
+    Give precedence to the move and copy flag instead.
+
+    TODO:
+    In order to respect wxDrag_DefaultMove, access to dnd.mm's
+    DropSourceDelegate will be needed which contains the wxDrag value used.
+    (The draggingSource method of sender points to a DropSourceDelegate* ).
+    */
+    wxDragResult result = wxDragNone;
+
+    if (sourceDragMask & NSDragOperationMove)
         result = wxDragMove;
+    else if ( sourceDragMask & NSDragOperationCopy
+        || sourceDragMask & NSDragOperationGeneric)
+        result = wxDragCopy;
+    else if (sourceDragMask & NSDragOperationLink)
+        result = wxDragLink;
 
     PasteboardRef pboardRef;
     PasteboardCreate((CFStringRef)[pboard name], &pboardRef);
     target->SetCurrentDragPasteboard(pboardRef);
-    result = target->OnEnter(pt.x, pt.y, result);
+    if (entered)
+    {
+        // Drag entered
+        result = target->OnEnter(pt.x, pt.y, result);
+    }
+    else
+    {
+        // Drag updated
+        result = target->OnDragOver(pt.x, pt.y, result);
+    }
+
     CFRelease(pboardRef);
 
     NSDragOperation nsresult = NSDragOperationNone;
@@ -1200,14 +1247,27 @@ unsigned int wxWidgetCocoaImpl::draggingEntered(void* s, WXWidget WXUNUSED(slf),
     {
         case wxDragLink:
             nsresult = NSDragOperationLink;
+            break;
+
         case wxDragMove:
             nsresult = NSDragOperationMove;
+            break;
+
         case wxDragCopy:
             nsresult = NSDragOperationCopy;
+            break;
+
         default :
             break;
     }
     return nsresult;
+}
+
+} // anonymous namespace
+
+unsigned int wxWidgetCocoaImpl::draggingEntered(void* s, WXWidget WXUNUSED(slf), void *WXUNUSED(_cmd))
+{
+    return wxOnDraggingEnteredOrUpdated(this, s, true /*entered*/);
 }
 
 void wxWidgetCocoaImpl::draggingExited(void* s, WXWidget WXUNUSED(slf), void *WXUNUSED(_cmd))
@@ -1232,48 +1292,7 @@ void wxWidgetCocoaImpl::draggingExited(void* s, WXWidget WXUNUSED(slf), void *WX
 
 unsigned int wxWidgetCocoaImpl::draggingUpdated(void* s, WXWidget WXUNUSED(slf), void *WXUNUSED(_cmd))
 {
-    id <NSDraggingInfo>sender = (id <NSDraggingInfo>) s;
-    NSPasteboard *pboard = [sender draggingPasteboard];
-    NSDragOperation sourceDragMask = [sender draggingSourceOperationMask];
-
-    wxWindow* wxpeer = GetWXPeer();
-    if ( wxpeer == NULL )
-        return NSDragOperationNone;
-
-    wxDropTarget* target = wxpeer->GetDropTarget();
-    if ( target == NULL )
-        return NSDragOperationNone;
-
-    wxDragResult result = wxDragNone;
-    NSPoint nspoint = [m_osxView convertPoint:[sender draggingLocation] fromView:nil];
-    wxPoint pt = wxFromNSPoint( m_osxView, nspoint );
-
-    if ( sourceDragMask & NSDragOperationLink )
-        result = wxDragLink;
-    else if ( sourceDragMask & NSDragOperationCopy )
-        result = wxDragCopy;
-    else if ( sourceDragMask & NSDragOperationMove )
-        result = wxDragMove;
-    
-    PasteboardRef pboardRef;
-    PasteboardCreate((CFStringRef)[pboard name], &pboardRef);
-    target->SetCurrentDragPasteboard(pboardRef);
-    result = target->OnDragOver(pt.x, pt.y, result);
-    CFRelease(pboardRef);
-
-    NSDragOperation nsresult = NSDragOperationNone;
-    switch (result )
-    {
-        case wxDragLink:
-            nsresult = NSDragOperationLink;
-        case wxDragMove:
-            nsresult = NSDragOperationMove;
-        case wxDragCopy:
-            nsresult = NSDragOperationCopy;
-        default :
-            break;
-    }
-    return nsresult;
+    return wxOnDraggingEnteredOrUpdated(this, s, false /*updated*/);
 }
 
 bool wxWidgetCocoaImpl::performDragOperation(void* s, WXWidget WXUNUSED(slf), void *WXUNUSED(_cmd))
@@ -1289,12 +1308,13 @@ bool wxWidgetCocoaImpl::performDragOperation(void* s, WXWidget WXUNUSED(slf), vo
     NSPoint nspoint = [m_osxView convertPoint:[sender draggingLocation] fromView:nil];
     wxPoint pt = wxFromNSPoint( m_osxView, nspoint );
 
-    if ( sourceDragMask & NSDragOperationLink )
-        result = wxDragLink;
-    else if ( sourceDragMask & NSDragOperationCopy )
-        result = wxDragCopy;
-    else if ( sourceDragMask & NSDragOperationMove )
+    if (sourceDragMask & NSDragOperationMove)
         result = wxDragMove;
+    else if ( sourceDragMask & NSDragOperationCopy
+        || sourceDragMask & NSDragOperationGeneric)
+        result = wxDragCopy;
+    else if (sourceDragMask & NSDragOperationLink)
+        result = wxDragLink;
 
     PasteboardRef pboardRef;
     PasteboardCreate((CFStringRef)[pboard name], &pboardRef);

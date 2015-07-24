@@ -92,7 +92,7 @@ public:
                                      int argFlags = 0 ) const wxOVERRIDE
     {
         if ( index == (int)(m_choices.GetCount()-1) )
-            return wxT("");
+            return wxEmptyString;
 
         return wxColourProperty::ColourToString(col, index, argFlags);
     }
@@ -123,7 +123,7 @@ void FormMain::OnDumpList( wxCommandEvent& WXUNUSED(event) )
     wxString text = wxT("This only tests that wxVariant related routines do not crash.");
     wxString t;
 
-    wxDialog* dlg = new wxDialog(this,-1,wxT("wxVariant Test"),
+    wxDialog* dlg = new wxDialog(this,wxID_ANY,wxT("wxVariant Test"),
         wxDefaultPosition,wxDefaultSize,wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
 
     unsigned int i;
@@ -166,13 +166,11 @@ void FormMain::OnDumpList( wxCommandEvent& WXUNUSED(event) )
     wxTextCtrl* ed = new wxTextCtrl(dlg, 11, text,
                                     wxDefaultPosition, wxDefaultSize,
                                     wxTE_MULTILINE);
-    rowsizer->Add( ed, 1, wxEXPAND|wxALL, spacing );
-    topsizer->Add( rowsizer, 1, wxEXPAND, 0 );
+    rowsizer->Add( ed, wxSizerFlags(1).Expand().Border(wxALL, spacing));
+    topsizer->Add( rowsizer, wxSizerFlags(1).Expand());
     rowsizer = new wxBoxSizer( wxHORIZONTAL );
-    const int butSzFlags =
-        wxALIGN_CENTRE_HORIZONTAL|wxALIGN_CENTRE_VERTICAL|wxBOTTOM|wxLEFT|wxRIGHT;
     rowsizer->Add( new wxButton(dlg,wxID_OK,wxT("Ok")),
-        0, butSzFlags, spacing );
+        wxSizerFlags(0).CentreHorizontal().CentreVertical().Border(wxBOTTOM|wxLEFT|wxRIGHT, spacing));
     topsizer->Add( rowsizer, wxSizerFlags().Right() );
 
     dlg->SetSizer( topsizer );
@@ -337,7 +335,7 @@ bool FormMain::RunTests( bool fullTest, bool interactive )
     wxArrayString errorMessages;
     wxDialog* dlg = NULL;
 
-    dlg = new wxDialog(this,-1,wxT("wxPropertyGrid Regression Tests"),
+    dlg = new wxDialog(this,wxID_ANY,wxT("wxPropertyGrid Regression Tests"),
         wxDefaultPosition,wxDefaultSize,wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER);
 
     // multi-line text editor dialog
@@ -347,13 +345,11 @@ bool FormMain::RunTests( bool fullTest, bool interactive )
     wxTextCtrl* ed = new wxTextCtrl(dlg, 11, wxEmptyString,
                                     wxDefaultPosition, wxDefaultSize,
                                     wxTE_MULTILINE);
-    rowsizer->Add( ed, 1, wxEXPAND|wxALL, spacing );
-    topsizer->Add( rowsizer, 1, wxEXPAND, 0 );
+    rowsizer->Add( ed, wxSizerFlags(1).Expand().Border(wxALL, spacing));
+    topsizer->Add( rowsizer, wxSizerFlags(1).Expand());
     rowsizer = new wxBoxSizer( wxHORIZONTAL );
-    const int butSzFlags =
-        wxALIGN_CENTRE_HORIZONTAL|wxALIGN_CENTRE_VERTICAL|wxBOTTOM|wxLEFT|wxRIGHT;
     rowsizer->Add( new wxButton(dlg,wxID_OK,wxT("Ok")),
-        0, butSzFlags, spacing );
+        wxSizerFlags(0).CentreHorizontal().CentreVertical().Border(wxBOTTOM|wxLEFT|wxRIGHT, spacing));
     topsizer->Add( rowsizer, wxSizerFlags().Right() );
 
     dlg->SetSizer( topsizer );
@@ -1206,7 +1202,7 @@ bool FormMain::RunTests( bool fullTest, bool interactive )
         if ( pgman->GetGrid()->GetSplitterPosition() != trySplitterPos )
             RT_FAILURE_MSG(wxString::Format(wxT("Splitter position was %i (should have been %i)"),(int)pgman->GetGrid()->GetSplitterPosition(),trySplitterPos).c_str());
 
-        m_topSizer->Add( m_pPropGridManager, 1, wxEXPAND );
+        m_topSizer->Add( m_pPropGridManager, wxSizerFlags(1).Expand());
         FinalizePanel();
 
         wxSize sz = GetSize();
@@ -1418,7 +1414,7 @@ bool FormMain::RunTests( bool fullTest, bool interactive )
     }
     else
     {
-        RT_MSG(wxT("All tests successfull"))
+        RT_MSG(wxT("All tests successful"))
         retVal = true;
 
         if ( !interactive )
