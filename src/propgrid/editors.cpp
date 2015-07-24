@@ -353,7 +353,7 @@ void wxPGTextCtrlEditor::DrawValue( wxDC& dc, wxPGProperty* property, const wxRe
         // Code below should no longer be needed, as the obfuscation
         // is now done in GetValueAsString.
         /*if ( property->HasFlag(wxPG_PROP_PASSWORD) &&
-             property->IsKindOf(WX_PG_CLASSINFO(wxStringProperty)) )
+             wxDynamicCast(property, wxStringProperty) )
         {
             size_t a = drawStr.length();
             drawStr.Empty();
@@ -523,7 +523,7 @@ public:
         : wxEvtHandler()
     {
         wxASSERT_MSG( wxDynamicCast(property, wxBoolProperty),
-           wxT("Double-click processor should be used only with wxBoolProperty") );
+           wxS("Double-click processor should be used only with wxBoolProperty") );
 
         m_timeLastMouseUp = 0;
         m_combo = combo;
@@ -536,7 +536,7 @@ protected:
     void OnMouseEvent( wxMouseEvent& event )
     {
         wxMilliClock_t t = ::wxGetLocalTimeMillis();
-        int evtType = event.GetEventType();
+        wxEventType evtType = event.GetEventType();
 
         if ( m_property->HasFlag(wxPG_PROP_USE_DCC) &&
              !m_combo->IsPopupShown() )
@@ -802,7 +802,7 @@ void wxPropertyGrid::OnComboItemPaint( const wxPGComboBox* pCb,
     if ( (flags & wxODCB_PAINTING_CONTROL) )
         paintdata.m_choiceItem = -1;
 
-    wxCHECK_RET( pDc, wxT("Invalid DC") );
+    wxCHECK_RET( pDc, wxS("Invalid DC") );
 
     wxDC& dc = *pDc;
     dc.SetBrush(*wxWHITE_BRUSH);
@@ -1032,8 +1032,7 @@ wxWindow* wxPGChoiceEditor::CreateControlsBase( wxPropertyGrid* propGrid,
             }
         }
 
-        unsigned int i;
-        for ( i=0; i<cmnVals; i++ )
+        for ( unsigned int i = 0; i < cmnVals; i++ )
             labels.Add(propGrid->GetCommonValueLabel(i));
     }
 
@@ -1770,7 +1769,7 @@ void wxPropertyGrid::CorrectEditorWidgetSizeX()
 
     // Use fixed selColumn 1 for main editor widgets
     int newSplitterx = m_pState->DoGetSplitterPosition(0);
-    int newWidth = newSplitterx + m_pState->m_colWidths[1];
+    int newWidth = newSplitterx + m_pState->GetColumnWidth(1);
 
     if ( m_wndEditor2 )
     {

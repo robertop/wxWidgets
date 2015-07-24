@@ -430,7 +430,9 @@ enum
     ID_RUNMINIMAL,
     ID_ENABLELABELEDITING,
     ID_VETOCOLDRAG,
+#if wxUSE_HEADERCTRL
     ID_SHOWHEADER,
+#endif
     ID_ONEXTENDEDKEYNAV,
     ID_SHOWPOPUP,
     ID_POPUPGRID
@@ -505,7 +507,9 @@ wxBEGIN_EVENT_TABLE(FormMain, wxFrame)
     EVT_MENU( ID_CLEARMODIF, FormMain::OnClearModifyStatusClick )
     EVT_MENU( ID_FREEZE, FormMain::OnFreezeClick )
     EVT_MENU( ID_ENABLELABELEDITING, FormMain::OnEnableLabelEditing )
+#if wxUSE_HEADERCTRL
     EVT_MENU( ID_SHOWHEADER, FormMain::OnShowHeader )
+#endif
     EVT_MENU( ID_DUMPLIST, FormMain::OnDumpList )
 
     EVT_MENU( ID_COLOURSCHEME1, FormMain::OnColourScheme )
@@ -1301,7 +1305,7 @@ void FormMain::PopulateWithExamples ()
     soc.Add( wxT("Look, it continues"), 200 );
     soc.Add( wxT("Even More"), 240 );
     soc.Add( wxT("And More"), 280 );
-    soc.Add( wxT(""), 300 );
+    soc.Add( wxEmptyString, 300 );
     soc.Add( wxT("True End of the List"), 320 );
 
     // Test custom colours ([] operator of wxPGChoices returns
@@ -1840,16 +1844,16 @@ void FormMain::FinalizePanel( bool wasCreated )
     // Button for tab traversal testing
     m_topSizer->Add( new wxButton(m_panel, wxID_ANY,
                      wxT("Should be able to move here with Tab")),
-                     0, wxEXPAND );
+                     wxSizerFlags(0).Expand());
     m_topSizer->Add( new wxButton(m_panel, ID_SHOWPOPUP,
                      wxT("Show Popup")),
-                     0, wxEXPAND );
+                     wxSizerFlags(0).Expand());
 
     m_panel->SetSizer( m_topSizer );
     m_topSizer->SetSizeHints( m_panel );
 
     wxBoxSizer* panelSizer = new wxBoxSizer( wxHORIZONTAL );
-    panelSizer->Add( m_panel, 1, wxEXPAND|wxFIXED_MINSIZE );
+    panelSizer->Add( m_panel, wxSizerFlags(1).Expand().FixedMinSize());
 
     SetSizer( panelSizer );
     panelSizer->SetSizeHints( this );
@@ -1957,7 +1961,7 @@ void FormMain::CreateGrid( int style, int extraStyle )
             wxPropertyGridEventHandler(FormMain::OnPropertyGridChange) );
     */
 
-    m_topSizer->Add( m_pPropGridManager, 1, wxEXPAND );
+    m_topSizer->Add( m_pPropGridManager, wxSizerFlags(1).Expand());
 
     FinalizePanel(wasCreated);
 }
@@ -2093,9 +2097,11 @@ FormMain::FormMain(const wxString& title, const wxPoint& pos, const wxSize& size
         wxT("Select window style flags used by the grid."));
     menuTry->Append(ID_ENABLELABELEDITING, wxT("Enable label editing"),
         wxT("This calls wxPropertyGrid::MakeColumnEditable(0)"));
+#if wxUSE_HEADERCTRL
     menuTry->AppendCheckItem(ID_SHOWHEADER,
         wxT("Enable header"),
         wxT("This calls wxPropertyGridManager::ShowHeader()"));
+#endif // wxUSE_HEADERCTRL
     menuTry->AppendSeparator();
     menuTry->AppendRadioItem( ID_COLOURSCHEME1, wxT("Standard Colour Scheme") );
     menuTry->AppendRadioItem( ID_COLOURSCHEME2, wxT("White Colour Scheme") );
@@ -2685,11 +2691,13 @@ void FormMain::OnEnableLabelEditing( wxCommandEvent& WXUNUSED(event) )
 
 // -----------------------------------------------------------------------
 
+#if wxUSE_HEADERCTRL
 void FormMain::OnShowHeader( wxCommandEvent& event )
 {
     m_pPropGridManager->ShowHeader(event.IsChecked());
     m_pPropGridManager->SetColumnTitle(2, wxT("Units"));
 }
+#endif // wxUSE_HEADERCTRL
 
 // -----------------------------------------------------------------------
 
@@ -3242,7 +3250,7 @@ struct PropertyGridPopup : wxPopupWindow
         ::SetMinSize(m_grid);
 
         m_sizer = new wxBoxSizer( wxVERTICAL );
-        m_sizer->Add(m_grid, 0, wxALL | wxEXPAND, 0);
+        m_sizer->Add(m_grid, wxSizerFlags(0).Expand().Border(wxALL, 0));
         m_panel->SetAutoLayout(true);
         m_panel->SetSizer(m_sizer);
         m_sizer->Fit(m_panel);

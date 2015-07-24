@@ -521,7 +521,7 @@ public:
     void SelectPage( const wxString& label )
     {
         int index = GetPageByName(label);
-        wxCHECK_RET( index >= 0, wxT("No page with such name") );
+        wxCHECK_RET( index >= 0, wxS("No page with such name") );
         SelectPage( index );
     }
 
@@ -538,6 +538,7 @@ public:
         return p->GetParentState()->DoSelectProperty(p, focus);
     }
 
+#if wxUSE_HEADERCTRL
     /**
         Sets a column title. Default title for column 0 is "Property",
         and "Value" for column 1.
@@ -546,6 +547,7 @@ public:
                  member function will make it visible.
     */
     void SetColumnTitle( int idx, const wxString& title );
+#endif // wxUSE_HEADERCTRL
 
     /**
         Sets number of columns on given page (default is current page).

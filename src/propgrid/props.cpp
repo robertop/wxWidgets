@@ -95,12 +95,12 @@ wxString wxStringProperty::ValueToString( wxVariant& value,
         // Value stored in m_value is non-editable, non-full value
         if ( (argFlags & wxPG_FULL_VALUE) ||
              (argFlags & wxPG_EDITABLE_VALUE) ||
-             !s.length() )
+             s.empty() )
         {
             // Calling this under incorrect conditions will fail
             wxASSERT_MSG( argFlags & wxPG_VALUE_IS_CURRENT,
-                          "Sorry, currently default wxPGProperty::ValueToString() "
-                          "implementation only works if value is m_value." );
+                          wxS("Sorry, currently default wxPGProperty::ValueToString() ")
+                          wxS("implementation only works if value is m_value.") );
 
             DoGenerateComposedValue(s, argFlags);
         }
@@ -189,7 +189,7 @@ wxNumericPropertyValidator::
         arr.Add(wxS("e")); arr.Add(wxS("E"));
 
         // Use locale-specific decimal point
-        arr.Add(wxString::Format("%g", 1.1)[1]);
+        arr.Add(wxString::Format(wxS("%g"), 1.1)[1]);
     }
 
     SetIncludes(arr);
@@ -200,18 +200,12 @@ bool wxNumericPropertyValidator::Validate(wxWindow* parent)
     if ( !wxTextValidator::Validate(parent) )
         return false;
 
-    wxWindow* wnd = GetWindow();
-    if ( !wxDynamicCast(wnd, wxTextCtrl) )
+    wxTextCtrl* tc = wxDynamicCast(GetWindow(), wxTextCtrl);
+    if ( !tc )
         return true;
 
     // Do not allow zero-length string
-    wxTextCtrl* tc = static_cast<wxTextCtrl*>(wnd);
-    wxString text = tc->GetValue();
-
-    if ( text.empty() )
-        return false;
-
-    return true;
+    return !tc->IsEmpty();
 }
 
 #endif // wxUSE_VALIDATORS
@@ -1207,7 +1201,7 @@ wxEnumProperty::wxEnumProperty( const wxString& label, const wxString& name,
 {
     SetIndex(0);
 
-    if ( &labels && labels.size() )
+    if ( !labels.empty() )
     {
         m_choices.Set(labels, values);
 
@@ -1259,7 +1253,7 @@ void wxEnumProperty::OnSetValue()
     }
     else
     {
-        wxFAIL_MSG( wxT("Unexpected value type") );
+        wxFAIL_MSG( wxS("Unexpected value type") );
         return;
     }
 
@@ -1451,7 +1445,7 @@ void wxEditEnumProperty::OnSetValue()
     }
     else
     {
-        wxFAIL_MSG( wxT("Unexpected value type") );
+        wxFAIL_MSG( wxS("Unexpected value type") );
         return;
     }
 
@@ -1492,7 +1486,6 @@ void wxFlagsProperty::Init()
     //
     // Generate children
     //
-    unsigned int i;
 
     unsigned int prevChildCount = m_children.size();
 
@@ -1517,6 +1510,8 @@ void wxFlagsProperty::Init()
         }
         state->DoClearSelection();
     }
+
+    unsigned int i;
 
     // Delete old children
     for ( i=0; i<prevChildCount; i++ )
@@ -1595,7 +1590,7 @@ wxFlagsProperty::wxFlagsProperty( const wxString& label, const wxString& name,
 {
     m_oldChoicesData = NULL;
 
-    if ( &labels && labels.size() )
+    if ( !labels.empty() )
     {
         m_choices.Set(labels,values);
 
@@ -1670,9 +1665,8 @@ void wxFlagsProperty::OnSetValue()
     if ( newFlags != m_oldValue )
     {
         // Set child modified states
-        unsigned int i;
         const wxPGChoices& choices = m_choices;
-        for ( i = 0; i<GetItemCount(); i++ )
+        for ( unsigned int i = 0; i < GetItemCount(); i++ )
         {
             int flag;
 
@@ -1954,7 +1948,7 @@ wxValidator* wxFileProperty::GetClassValidator()
 #if wxUSE_VALIDATORS
     WX_PG_DOGETVALIDATOR_ENTRY()
 
-    // Atleast wxPython 2.6.2.1 required that the string argument is given
+    // At least wxPython 2.6.2.1 required that the string argument is given
     static wxString v;
     wxTextValidator* validator = new wxTextValidator(wxFILTER_EXCLUDE_CHAR_LIST,&v);
 
@@ -2234,7 +2228,7 @@ bool wxLongStringProperty::DisplayEditorDialog( wxPGProperty* prop, wxPropertyGr
 
 {
     // launch editor dialog
-    wxDialog* dlg = new wxDialog(propGrid,-1,prop->GetLabel(),wxDefaultPosition,wxDefaultSize,
+    wxDialog* dlg = new wxDialog(propGrid, wxID_ANY, prop->GetLabel(), wxDefaultPosition, wxDefaultSize,
                                  wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER|wxCLIP_CHILDREN);
 
     dlg->SetFont(propGrid->GetFont()); // To allow entering chars of the same set as the propGrid
@@ -2253,17 +2247,15 @@ bool wxLongStringProperty::DisplayEditorDialog( wxPGProperty* prop, wxPropertyGr
     wxTextCtrl* ed = new wxTextCtrl(dlg,wxID_ANY,value,
         wxDefaultPosition,wxDefaultSize,edStyle);
 
-    rowsizer->Add( ed, 1, wxEXPAND|wxALL, spacing );
-    topsizer->Add( rowsizer, 1, wxEXPAND, 0 );
+    rowsizer->Add(ed, wxSizerFlags(1).Expand().Border(wxALL, spacing));
+    topsizer->Add(rowsizer, wxSizerFlags(1).Expand());
 
     wxStdDialogButtonSizer* buttonSizer = new wxStdDialogButtonSizer();
     if ( !prop->HasFlag(wxPG_PROP_READONLY) )
         buttonSizer->AddButton(new wxButton(dlg, wxID_OK));
     buttonSizer->AddButton(new wxButton(dlg, wxID_CANCEL));
     buttonSizer->Realize();
-    topsizer->Add( buttonSizer, 0,
-                   wxALIGN_RIGHT|wxALIGN_CENTRE_VERTICAL|wxBOTTOM|wxRIGHT,
-                   spacing );
+    topsizer->Add(buttonSizer, wxSizerFlags(0).Right().Border(wxBOTTOM|wxRIGHT, spacing));
 
     dlg->SetSizer( topsizer );
     topsizer->SetSizeHints( dlg );
@@ -2401,8 +2393,8 @@ bool wxPGArrayEditorDialog::Create( wxWindow *parent,
 
     // Message
     if ( !message.empty() )
-        topsizer->Add( new wxStaticText(this,-1,message),
-            0, wxALIGN_LEFT|wxALIGN_CENTRE_VERTICAL|wxALL, spacing );
+        topsizer->Add( new wxStaticText(this, wxID_ANY, message),
+            wxSizerFlags(0).Left().Border(wxALL, spacing) );
 
     m_elb = new wxEditableListBox(this, wxID_ANY, message,
                                   wxDefaultPosition,
@@ -2450,16 +2442,14 @@ bool wxPGArrayEditorDialog::Create( wxWindow *parent,
         wxListEventHandler(wxPGArrayEditorDialog::OnEndLabelEdit),
         NULL, this);
 
-    topsizer->Add( m_elb, 1, wxEXPAND, spacing );
+    topsizer->Add(m_elb, wxSizerFlags(1).Expand().Border(0, spacing));
 
     // Standard dialog buttons
     wxStdDialogButtonSizer* buttonSizer = new wxStdDialogButtonSizer();
     buttonSizer->AddButton(new wxButton(this, wxID_OK));
     buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
     buttonSizer->Realize();
-    topsizer->Add( buttonSizer, 0,
-                   wxALIGN_RIGHT|wxALIGN_CENTRE_VERTICAL|wxALL,
-                   spacing );
+    topsizer->Add(buttonSizer, wxSizerFlags(0).Right().Border(wxALL, spacing));
 
     m_elb->SetFocus();
 
