@@ -36,6 +36,13 @@ Changes in behaviour which may result in build errors
 - WXWIN_OS_DESCRIPTION doesn't exist any longer, use wxGetOsDescription().
 
 
+
+3.1.1: (not released yet)
+----------------------------
+wxOSX:
+
+- Fix handling of non-BMP characters in GetPartialTextExtents() (ARATA Mizuki).
+
 3.1.0: (released 2015-xx-xx)
 ----------------------------
 
