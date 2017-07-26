@@ -213,6 +213,17 @@ public:
     virtual void Cut();
 
     /**
+        Convert all text entered into the control to upper case.
+
+        Call this method to ensure that all text entered into the control is
+        converted on the fly to upper case. If the control is not empty, its
+        existing contents is also converted to upper case.
+
+        @since 3.1.0
+     */
+    void ForceUpper();
+
+    /**
         Returns the insertion point, or cursor, position.
 
         This is defined as the zero based index of the character position to
@@ -472,6 +483,9 @@ public:
             hints and the text control is empty. If you bind to the control's
             focus and wxEVT_TEXT events, you must call wxEvent::Skip() on them
             so that the generic implementation works correctly.
+
+            Another limitation is that hints are ignored for the controls with
+            @c wxTE_PASSWORD style.
 
         @remarks Hints can be used for single line text controls under all
             platforms, but only MSW and GTK+ 2 support them for multi-line text

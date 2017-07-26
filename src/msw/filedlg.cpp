@@ -23,7 +23,7 @@
     #pragma hdrstop
 #endif
 
-#if wxUSE_FILEDLG && !(defined(__SMARTPHONE__) && defined(__WXWINCE__))
+#if wxUSE_FILEDLG
 
 #include "wx/filedlg.h"
 
@@ -52,11 +52,7 @@
 // constants
 // ----------------------------------------------------------------------------
 
-#ifdef __WIN32__
 # define wxMAXPATH   65534
-#else
-# define wxMAXPATH   1024
-#endif
 
 # define wxMAXFILE   1024
 
@@ -160,7 +156,6 @@ wxFileDialogHookFunction(HWND      hDlg,
 {
     switch ( iMsg )
     {
-#ifndef __WXWINCE__
         case WM_INITDIALOG:
             {
                 OPENFILENAME* ofn = reinterpret_cast<OPENFILENAME *>(lParam);
@@ -168,7 +163,6 @@ wxFileDialogHookFunction(HWND      hDlg,
                     ->MSWOnInitDialogHook((WXHWND)hDlg);
             }
             break;
-#endif // __WXWINCE__
 
         case WM_NOTIFY:
             {
@@ -370,82 +364,19 @@ static bool DoShowCommFileDialog(OPENFILENAME *of, long style, DWORD *err)
 
     if ( err )
     {
-#ifdef __WXWINCE__
-        // according to MSDN, CommDlgExtendedError() should work under CE as
-        // well but apparently in practice it doesn't (anybody has more
-        // details?)
-        *err = GetLastError();
-#else
         *err = CommDlgExtendedError();
-#endif
     }
 
     return false;
 }
-
-// We want to use OPENFILENAME struct version 5 (Windows 2000/XP) but we don't
-// know if the OPENFILENAME declared in the currently used headers is a V5 or
-// V4 (smaller) one so we try to manually extend the struct in case it is the
-// old one.
-//
-// We don't do this on Windows CE nor under Win64, however, as there are no
-// compilers with old headers for these architectures
-#if defined(__WXWINCE__) || defined(__WIN64__)
-    typedef OPENFILENAME wxOPENFILENAME;
-
-    static const DWORD gs_ofStructSize = sizeof(OPENFILENAME);
-#else // !__WXWINCE__ || __WIN64__
-    #define wxTRY_SMALLER_OPENFILENAME
-
-    struct wxOPENFILENAME : public OPENFILENAME
-    {
-        // fields added in Windows 2000/XP comdlg32.dll version
-        void *pVoid;
-        DWORD dw1;
-        DWORD dw2;
-    };
-
-    // hardcoded sizeof(OPENFILENAME) in the Platform SDK: we have to do it
-    // because sizeof(OPENFILENAME) in the headers we use when compiling the
-    // library could be less if _WIN32_WINNT is not >= 0x500
-    static const DWORD wxOPENFILENAME_V5_SIZE = 88;
-
-    // this is hardcoded sizeof(OPENFILENAME_NT4) from Platform SDK
-    static const DWORD wxOPENFILENAME_V4_SIZE = 76;
-
-    // always try the new one first
-    static DWORD gs_ofStructSize = wxOPENFILENAME_V5_SIZE;
-#endif // __WXWINCE__ || __WIN64__/!...
 
 static bool ShowCommFileDialog(OPENFILENAME *of, long style)
 {
     DWORD errCode;
     bool success = DoShowCommFileDialog(of, style, &errCode);
 
-#ifdef wxTRY_SMALLER_OPENFILENAME
-    // the system might be too old to support the new version file dialog
-    // boxes, try with the old size
-    if ( !success && errCode == CDERR_STRUCTSIZE &&
-            of->lStructSize != wxOPENFILENAME_V4_SIZE )
-    {
-        of->lStructSize = wxOPENFILENAME_V4_SIZE;
-
-        success = DoShowCommFileDialog(of, style, &errCode);
-
-        if ( success || !errCode )
-        {
-            // use this struct size for subsequent dialogs
-            gs_ofStructSize = of->lStructSize;
-        }
-    }
-#endif // wxTRY_SMALLER_OPENFILENAME
-
     if ( !success &&
-            // FNERR_INVALIDFILENAME is not defined under CE (besides we don't
-            // use CommDlgExtendedError() there anyhow)
-#ifndef __WXWINCE__
             errCode == FNERR_INVALIDFILENAME &&
-#endif // !__WXWINCE__
                 of->lpstrFile[0] )
     {
         // this can happen if the default file name is invalid, try without it
@@ -469,7 +400,6 @@ static bool ShowCommFileDialog(OPENFILENAME *of, long style)
     return true;
 }
 
-#ifndef __WXWINCE__
 void wxFileDialog::MSWOnInitDialogHook(WXHWND hwnd)
 {
    SetHWND(hwnd);
@@ -478,16 +408,13 @@ void wxFileDialog::MSWOnInitDialogHook(WXHWND hwnd)
 
    SetHWND(NULL);
 }
-#endif // __WXWINCE__
 
 int wxFileDialog::ShowModal()
 {
     WX_HOOK_MODAL_DIALOG();
 
-    HWND hWnd = 0;
-    if (m_parent) hWnd = (HWND) m_parent->GetHWND();
-    if (!hWnd && wxTheApp->GetTopWindow())
-        hWnd = (HWND) wxTheApp->GetTopWindow()->GetHWND();
+    wxWindow* const parent = GetParentForModalDialog(m_parent, GetWindowStyle());
+    WXHWND hWndParent = parent ? GetHwndOf(parent) : NULL;
 
     static wxChar fileNameBuffer [ wxMAXPATH ];           // the file-name
     wxChar        titleBuffer    [ wxMAXFILE+1+wxMAXEXT ];  // the file-name, without path
@@ -514,9 +441,7 @@ int wxFileDialog::ShowModal()
     {
         ChangeExceptionPolicy();
         msw_flags |= OFN_EXPLORER|OFN_ENABLEHOOK;
-#ifndef __WXWINCE__
         msw_flags |= OFN_ENABLESIZING;
-#endif
     }
 
     wxON_BLOCK_EXIT0(RestoreExceptionPolicy);
@@ -540,16 +465,15 @@ int wxFileDialog::ShowModal()
         msw_flags |= OFN_OVERWRITEPROMPT;
     }
 
-    wxOPENFILENAME of;
+    OPENFILENAME of;
     wxZeroMemory(of);
 
-    of.lStructSize       = gs_ofStructSize;
-    of.hwndOwner         = hWnd;
+    of.lStructSize       = sizeof(OPENFILENAME);
+    of.hwndOwner         = hWndParent;
     of.lpstrTitle        = m_message.t_str();
     of.lpstrFileTitle    = titleBuffer;
     of.nMaxFileTitle     = wxMAXFILE + 1 + wxMAXEXT;
 
-#ifndef __WXWINCE__
     GlobalPtr hgbl;
     if ( HasExtraControlCreator() )
     {
@@ -577,7 +501,6 @@ int wxFileDialog::ShowModal()
 
         of.hInstance = (HINSTANCE)lpdt;
     }
-#endif // __WXWINCE__
 
     // Convert forward slashes to backslashes (file selector doesn't like
     // forward slashes) and also squeeze multiple consecutive slashes into one
@@ -667,7 +590,7 @@ int wxFileDialog::ShowModal()
         const wxChar* extension = filterBuffer.t_str();
         int maxFilter = (int)(of.nFilterIndex*2L) - 1;
 
-        for( int i = 0; i < maxFilter; i++ )           // get extension
+        for( int j = 0; j < maxFilter; j++ )           // get extension
             extension = extension + wxStrlen( extension ) + 1;
 
         // use dummy name a to avoid assert in AppendExtension
@@ -679,35 +602,36 @@ int wxFileDialog::ShowModal()
         }
     }
 
+    // Create a temporary struct to restore the CWD when we exit this function
     // store off before the standard windows dialog can possibly change it
-    const wxString cwdOrig = wxGetCwd();
+    struct CwdRestore
+    {
+        wxString value;
+        ~CwdRestore()
+        {
+            if (!value.empty())
+                wxSetWorkingDirectory(value);
+        }
+    } cwdOrig;
+
+    // GetOpenFileName will always change the current working directory
+    // (according to MSDN) because the flag OFN_NOCHANGEDIR has no effect.
+    // If the user did not specify wxFD_CHANGE_DIR let's restore the
+    // current working directory to what it was before the dialog was shown.
+    if (msw_flags & OFN_NOCHANGEDIR)
+        cwdOrig.value = wxGetCwd();
 
     //== Execute FileDialog >>=================================================
 
     if ( !ShowCommFileDialog(&of, m_windowStyle) )
         return wxID_CANCEL;
 
-    // GetOpenFileName will always change the current working directory on
-    // (according to MSDN) "Windows NT 4.0/2000/XP" because the flag
-    // OFN_NOCHANGEDIR has no effect.  If the user did not specify
-    // wxFD_CHANGE_DIR let's restore the current working directory to what it
-    // was before the dialog was shown.
-    if ( msw_flags & OFN_NOCHANGEDIR )
-    {
-        wxSetWorkingDirectory(cwdOrig);
-    }
-
     m_fileNames.Empty();
 
     if ( ( HasFdFlag(wxFD_MULTIPLE) ) &&
-#if defined(OFN_EXPLORER)
          ( fileNameBuffer[of.nFileOffset-1] == wxT('\0') )
-#else
-         ( fileNameBuffer[of.nFileOffset-1] == wxT(' ') )
-#endif // OFN_EXPLORER
        )
     {
-#if defined(OFN_EXPLORER)
         m_dir = fileNameBuffer;
         i = of.nFileOffset;
         m_fileName = &fileNameBuffer[i];
@@ -719,21 +643,12 @@ int wxFileDialog::ShowModal()
             m_fileNames.Add(&fileNameBuffer[i]);
             i += wxStrlen(&fileNameBuffer[i]) + 1;
         }
-#else
-        wxStringTokenizer toke(fileNameBuffer, wxT(" \t\r\n"));
-        m_dir = toke.GetNextToken();
-        m_fileName = toke.GetNextToken();
-        m_fileNames.Add(m_fileName);
 
-        while (toke.HasMoreTokens())
-            m_fileNames.Add(toke.GetNextToken());
-#endif // OFN_EXPLORER
-
-        wxString dir(m_dir);
+        m_path = m_dir;
         if ( m_dir.Last() != wxT('\\') )
-            dir += wxT('\\');
+            m_path += wxT('\\');
 
-        m_path = dir + m_fileName;
+        m_path += m_fileName;
         m_filterIndex = (int)of.nFilterIndex - 1;
     }
     else
@@ -749,7 +664,7 @@ int wxFileDialog::ShowModal()
             const wxChar* extension = filterBuffer.t_str();
             int   maxFilter = (int)(of.nFilterIndex*2L) - 1;
 
-            for( int i = 0; i < maxFilter; i++ )           // get extension
+            for( int j = 0; j < maxFilter; j++ )           // get extension
                 extension = extension + wxStrlen( extension ) + 1;
 
             m_fileName = AppendExtension(fileNameBuffer, extension);
@@ -760,10 +675,10 @@ int wxFileDialog::ShowModal()
         m_fileName = wxFileNameFromPath(fileNameBuffer);
         m_fileNames.Add(m_fileName);
         m_dir = wxPathOnly(fileNameBuffer);
-        }
+    }
 
     return wxID_OK;
 
 }
 
-#endif // wxUSE_FILEDLG && !(__SMARTPHONE__ && __WXWINCE__)
+#endif // wxUSE_FILEDLG

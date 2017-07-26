@@ -134,10 +134,8 @@ bool wxGUIEventLoop::PreProcessMessage(WXMSG *msg)
         if ( wnd->MSWTranslateMessage((WXMSG *)msg))
             return true;
 
-        // stop at first top level window, i.e. don't try to process the key
-        // strokes originating in a dialog using the accelerators of the parent
-        // frame - this doesn't make much sense
-        if ( wnd->IsTopLevel() )
+        // stop at top navigation domain, i.e. typically a top level window
+        if ( wnd->IsTopNavigationDomain(wxWindow::Navigation_Accel) )
             break;
     }
 
@@ -151,7 +149,7 @@ bool wxGUIEventLoop::PreProcessMessage(WXMSG *msg)
         // if we don't do this, pressing ESC on a modal dialog shown as child
         // of a modal dialog with wxID_CANCEL will cause the parent dialog to
         // be closed, for example
-        if ( wnd->IsTopLevel() )
+        if ( wnd->IsTopNavigationDomain(wxWindow::Navigation_Accel) )
             break;
     }
 
@@ -250,6 +248,11 @@ void wxGUIEventLoop::OnNextIteration()
 #endif // wxUSE_THREADS
 }
 
+void wxGUIEventLoop::WakeUp()
+{
+    ::PostMessage(NULL, WM_NULL, 0, 0);
+}
+
 
 // ----------------------------------------------------------------------------
 // Yield to incoming messages
@@ -305,7 +308,6 @@ void wxGUIEventLoop::DoYieldFor(long eventsToProcess)
         bool processNow;
         switch (msg.message)
         {
-#if !defined(__WXWINCE__)
             case WM_NCMOUSEMOVE:
 
             case WM_NCLBUTTONDOWN:
@@ -317,7 +319,6 @@ void wxGUIEventLoop::DoYieldFor(long eventsToProcess)
             case WM_NCMBUTTONDOWN:
             case WM_NCMBUTTONUP:
             case WM_NCMBUTTONDBLCLK:
-#endif
 
             case WM_KEYDOWN:
             case WM_KEYUP:
@@ -327,9 +328,7 @@ void wxGUIEventLoop::DoYieldFor(long eventsToProcess)
             case WM_SYSKEYUP:
             case WM_SYSCHAR:
             case WM_SYSDEADCHAR:
-#ifdef WM_UNICHAR
             case WM_UNICHAR:
-#endif
             case WM_HOTKEY:
             case WM_IME_STARTCOMPOSITION:
             case WM_IME_ENDCOMPOSITION:
@@ -346,13 +345,9 @@ void wxGUIEventLoop::DoYieldFor(long eventsToProcess)
             case WM_IME_KEYDOWN:
             case WM_IME_KEYUP:
 
-#if !defined(__WXWINCE__)
             case WM_MOUSEHOVER:
             case WM_MOUSELEAVE:
-#endif
-#ifdef WM_NCMOUSELEAVE
             case WM_NCMOUSELEAVE:
-#endif
 
             case WM_CUT:
             case WM_COPY:

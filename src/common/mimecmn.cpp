@@ -49,8 +49,6 @@
     #include "wx/msw/mimetype.h"
 #elif ( defined(__DARWIN__) )
     #include "wx/osx/mimetype.h"
-#elif defined(__DOS__)
-    #include "wx/msdos/mimetype.h"
 #else // Unix
     #include "wx/unix/mimetype.h"
 #endif
@@ -428,6 +426,13 @@ wxFileType::GetPrintCommand(wxString *printCmd,
     }
 
     return m_impl->GetPrintCommand(printCmd, params);
+}
+
+wxString
+wxFileType::GetExpandedCommand(const wxString& verb,
+                               const wxFileType::MessageParameters& params) const
+{
+    return m_impl->GetExpandedCommand(verb, params);
 }
 
 

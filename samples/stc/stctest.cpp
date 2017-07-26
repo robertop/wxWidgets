@@ -32,6 +32,9 @@
 #include "wx/settings.h" // system settings
 #include "wx/string.h"   // strings support
 #include "wx/image.h"    // images support
+#if wxUSE_PRINTING_ARCHITECTURE
+#include "wx/paper.h"
+#endif // wxUSE_PRINTING_ARCHITECTURE
 
 //! application headers
 #include "defsext.h"     // Additional definitions
@@ -42,7 +45,7 @@
 // resources
 //----------------------------------------------------------------------------
 
-// the application icon (under Windows and OS/2 it is in resources)
+// the application icon (under Windows it is in resources)
 #ifndef wxHAS_IMAGES_IN_RESOURCES
     #include "../sample.xpm"
 #endif
@@ -91,7 +94,7 @@ class App: public wxApp {
     friend class AppFrame;
 
 public:
-    //! the main function called durning application start
+    //! the main function called during application start
     virtual bool OnInit ();
 
     //! application exit function
@@ -146,6 +149,7 @@ public:
     void OnPrint (wxCommandEvent &event);
     //! edit events
     void OnEdit (wxCommandEvent &event);
+    void OnContextMenu(wxContextMenuEvent& evt);
 
 private:
     // edit object
@@ -216,7 +220,14 @@ bool App::OnInit () {
 #if wxUSE_PRINTING_ARCHITECTURE
     // initialize print data and setup
     g_printData = new wxPrintData;
+    wxPrintPaperType *paper = wxThePrintPaperDatabase->FindPaperType(wxPAPER_A4);
+    g_printData->SetPaperId(paper->GetId());
+    g_printData->SetPaperSize(paper->GetSize());
+    g_printData->SetOrientation(wxPORTRAIT);
+
     g_pageSetupData = new wxPageSetupDialogData;
+    // copy over initial paper size from print record
+    (*g_pageSetupData) = *g_printData;
 #endif // wxUSE_PRINTING_ARCHITECTURE
 
     // create application frame
@@ -276,6 +287,7 @@ wxBEGIN_EVENT_TABLE (AppFrame, wxFrame)
                                      AppFrame::OnEdit)
     // help
     EVT_MENU (wxID_ABOUT,            AppFrame::OnAbout)
+    EVT_CONTEXT_MENU(                AppFrame::OnContextMenu)
 wxEND_EVENT_TABLE ()
 
 AppFrame::AppFrame (const wxString &title)
@@ -438,6 +450,27 @@ void AppFrame::OnEdit (wxCommandEvent &event) {
     if (m_edit) m_edit->GetEventHandler()->ProcessEvent (event);
 }
 
+void AppFrame::OnContextMenu(wxContextMenuEvent& evt)
+{
+    wxPoint point = evt.GetPosition();
+    // If from keyboard
+    if ( point.x == -1 && point.y == -1 )
+    {
+        wxSize size = GetSize();
+        point.x = size.x / 2;
+        point.y = size.y / 2;
+    }
+    else
+    {
+        point = ScreenToClient(point);
+    }
+
+    wxMenu menu;
+    menu.Append(wxID_ABOUT, wxT("&About"));
+    menu.Append(wxID_EXIT, wxT("E&xit"));
+    PopupMenu(&menu, point);
+}
+
 // private functions
 void AppFrame::CreateMenu ()
 {
@@ -485,11 +518,11 @@ void AppFrame::CreateMenu ()
     menuEdit->Append (wxID_SELECTALL, _("&Select all\tCtrl+A"));
     menuEdit->Append (myID_SELECTLINE, _("Select &line\tCtrl+L"));
 
-    // hilight submenu
-    wxMenu *menuHilight = new wxMenu;
+    // highlight submenu
+    wxMenu *menuHighlight = new wxMenu;
     int Nr;
     for (Nr = 0; Nr < g_LanguagePrefsSize; Nr++) {
-        menuHilight->Append (myID_HILIGHTFIRST + Nr,
+        menuHighlight->Append (myID_HIGHLIGHTFIRST + Nr,
                              g_LanguagePrefs [Nr].name);
     }
 
@@ -500,7 +533,7 @@ void AppFrame::CreateMenu ()
 
     // View menu
     wxMenu *menuView = new wxMenu;
-    menuView->Append (myID_HILIGHTLANG, _("&Hilight language .."), menuHilight);
+    menuView->Append (myID_HIGHLIGHTLANG, _("&Highlight language .."), menuHighlight);
     menuView->AppendSeparator();
     menuView->AppendCheckItem (myID_FOLDTOGGLE, _("&Toggle current fold\tCtrl+T"));
     menuView->AppendCheckItem (myID_OVERTYPE, _("&Overwrite mode\tIns"));
@@ -549,6 +582,8 @@ void AppFrame::CreateMenu ()
     menuExtra->AppendCheckItem(myID_MULTIPLE_SELECTIONS, _("Toggle &multiple selections"));
     menuExtra->AppendCheckItem(myID_MULTI_PASTE, _("Toggle multi-&paste"));
     menuExtra->AppendCheckItem(myID_MULTIPLE_SELECTIONS_TYPING, _("Toggle t&yping on multiple selections"));
+    menuExtra->AppendSeparator();
+    menuExtra->AppendCheckItem (myID_CUSTOM_POPUP, _("C&ustom popup menu"));
 
     // Window menu
     wxMenu *menuWindow = new wxMenu;
@@ -617,6 +652,9 @@ AppAbout::AppAbout (wxWindow *parent,
         m_timer->Start (milliseconds, wxTIMER_ONE_SHOT);
     }
 
+    // Get version of Scintilla
+    wxVersionInfo vi = wxStyledTextCtrl::GetLibraryVersionInfo();
+
     // sets the application title
     SetTitle (_("About .."));
 
@@ -628,7 +666,7 @@ AppAbout::AppAbout (wxWindow *parent,
                     1, wxEXPAND | wxALIGN_LEFT);
     aboutinfo->Add (new wxStaticText(this, wxID_ANY, _("Version: ")),
                     0, wxALIGN_LEFT);
-    aboutinfo->Add (new wxStaticText(this, wxID_ANY, APP_VERSION),
+    aboutinfo->Add (new wxStaticText(this, wxID_ANY, wxString::Format("%s (%s)", APP_VERSION, vi.GetVersionString())),
                     1, wxEXPAND | wxALIGN_LEFT);
     aboutinfo->Add (new wxStaticText(this, wxID_ANY, _("Licence type: ")),
                     0, wxALIGN_LEFT);

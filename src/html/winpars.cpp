@@ -296,7 +296,7 @@ wxFSFile *wxHtmlWinParser::OpenURL(wxHtmlURLType type,
         myfullurl = current.BuildUnescapedURI();
 
         // if not absolute then ...
-        if( current.IsReference() )
+        if( current.IsRelative() )
         {
             wxString basepath = GetFS()->GetPath();
             wxURI base(basepath);
@@ -631,7 +631,7 @@ wxFont* wxHtmlWinParser::CreateCurrentFont()
 void wxHtmlWinParser::SetLink(const wxHtmlLinkInfo& link)
 {
     m_Link = link;
-    m_UseLink = (link.GetHref() != wxEmptyString);
+    m_UseLink = !link.GetHref().empty();
 }
 
 void wxHtmlWinParser::SetFontFace(const wxString& face)

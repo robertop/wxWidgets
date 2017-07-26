@@ -11,6 +11,7 @@
 #include "wx/wxprec.h"
 
 #include "wx/utils.h"
+#include "wx/platinfo.h"
 
 #ifndef WX_PRECOMP
     #include "wx/intl.h"
@@ -33,8 +34,6 @@
     #include "wx/osx/private/timer.h"
 #endif
 #endif // wxUSE_GUI
-
-#if wxOSX_USE_COCOA
 
 #if wxUSE_GUI
 
@@ -233,10 +232,12 @@ void wxBell()
 @implementation ModalDialogDelegate
 - (id)init
 {
-    self = [super init];
-    sheetFinished = NO;
-    resultCode = -1;
-    impl = 0;
+    if ( self = [super init] )
+    {
+        sheetFinished = NO;
+        resultCode = -1;
+        impl = 0;
+    }
     return self;
 }
 
@@ -284,7 +285,7 @@ void wxBell()
 #if 0 
 
 // one possible solution is also quoted here
-// from http://stackoverflow.com/questions/7596643/when-calling-transformprocesstype-the-app-menu-doesnt-show-up
+// from https://stackoverflow.com/questions/7596643/when-calling-transformprocesstype-the-app-menu-doesnt-show-up
 
 @interface wxNSNonBundledAppHelper : NSObject {
     
@@ -337,8 +338,10 @@ void wxBell()
 
 - (id)init
 {
-    self = [super init];
-    firstPass = YES;
+    if ( self = [super init] )
+    {
+        firstPass = YES;
+    }
     return self;
 }
 
@@ -346,7 +349,7 @@ void wxBell()
     ProcessSerialNumber psn = { 0, kCurrentProcess };
     TransformProcessType(&psn, kProcessTransformToForegroundApplication);
     
-    if ( UMAGetSystemVersion() >= 0x1090 )
+    if ( wxPlatformInfo::Get().CheckOSVersion(10, 9) )
     {
         [[NSRunningApplication currentApplication] activateWithOptions:
          (NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
@@ -411,7 +414,7 @@ bool wxApp::DoInitGui()
         }
 
         appcontroller = OSXCreateAppController();
-        [[NSApplication sharedApplication] setDelegate:(id wxOSX_10_6_AND_LATER(<NSApplicationDelegate>))appcontroller];
+        [[NSApplication sharedApplication] setDelegate:(id <NSApplicationDelegate>)appcontroller];
         [NSColor setIgnoresAlpha:NO];
 
         // calling finishLaunching so early before running the loop seems to trigger some 'MenuManager compatibility' which leads
@@ -422,6 +425,11 @@ bool wxApp::DoInitGui()
     }
     gNSLayoutManager = [[NSLayoutManager alloc] init];
     
+    // This call makes it so that appplication:openFile: doesn't get bogus calls
+    // from Cocoa doing its own parsing of the argument string. And yes, we need
+    // to use a string with a boolean value in it. That's just how it works.
+    [[NSUserDefaults standardUserDefaults] setObject:@"NO" forKey:@"NSTreatUnknownArgumentsAsOpen"];
+
     return true;
 }
 
@@ -587,7 +595,9 @@ wxBitmap wxWindowDCImpl::DoGetAsBitmap(const wxRect *subrect) const
     if (!m_window)
         return wxNullBitmap;
 
-    wxBitmap bitmap(subrect ? subrect->GetSize() : m_window->GetSize());
+    const wxSize bitmapSize(subrect ? subrect->GetSize() : m_window->GetSize());
+    wxBitmap bitmap;
+    bitmap.CreateScaled(bitmapSize.x, bitmapSize.y, -1, m_contentScaleFactor);
 
     NSView* view = (NSView*) m_window->GetHandle();
     if ( [view isHiddenOrHasHiddenAncestor] == NO )
@@ -602,6 +612,12 @@ wxBitmap wxWindowDCImpl::DoGetAsBitmap(const wxRect *subrect) const
             CGImageRef cgImageRef = (CGImageRef)[rep CGImage];
 
             CGRect r = CGRectMake( 0 , 0 , CGImageGetWidth(cgImageRef)  , CGImageGetHeight(cgImageRef) );
+
+            // The bitmap created by wxBitmap::CreateScaled() above is scaled,
+            // so we need to adjust the coordinates for it.
+            r.size.width /= m_contentScaleFactor;
+            r.size.height /= m_contentScaleFactor;
+
             // since our context is upside down we dont use CGContextDrawImage
             wxMacDrawCGImage( (CGContextRef) bitmap.GetHBITMAP() , &r, cgImageRef ) ;
         }
@@ -617,4 +633,3 @@ wxBitmap wxWindowDCImpl::DoGetAsBitmap(const wxRect *subrect) const
 
 #endif // wxUSE_GUI
 
-#endif // wxOSX_USE_COCOA

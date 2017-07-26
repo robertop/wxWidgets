@@ -269,6 +269,7 @@ wxWindowDCImpl::wxWindowDCImpl( wxDC *owner ) :
     m_context = NULL;
     m_layout = NULL;
     m_fontdesc = NULL;
+    m_isClipBoxValid = false;
 }
 
 wxWindowDCImpl::wxWindowDCImpl( wxDC *owner, wxWindow *window ) :
@@ -284,6 +285,7 @@ wxWindowDCImpl::wxWindowDCImpl( wxDC *owner, wxWindow *window ) :
     m_cmap = NULL;
     m_isScreenDC = false;
     m_font = window->GetFont();
+    m_isClipBoxValid = false;
 
     GtkWidget *widget = window->m_wxwindow;
     m_gdkwindow = window->GTKGetDrawingWindow();
@@ -842,32 +844,7 @@ void wxWindowDCImpl::DoDrawRectangle( wxCoord x, wxCoord y, wxCoord width, wxCoo
 
         if ( m_pen.IsNonTransparent() )
         {
-            if ((m_pen.GetWidth() == 2) && (m_pen.GetCap() == wxCAP_ROUND) &&
-                (m_pen.GetJoin() == wxJOIN_ROUND) && (m_pen.GetStyle() == wxPENSTYLE_SOLID))
-            {
-                // Use 2 1-line rects instead
-                gdk_gc_set_line_attributes( m_penGC, 1, GDK_LINE_SOLID, GDK_CAP_ROUND, GDK_JOIN_ROUND );
-
-                if (m_signX == -1)
-                {
-                    // Different for RTL
-                    gdk_draw_rectangle( m_gdkwindow, m_penGC, FALSE, xx+1, yy, ww-2, hh-2 );
-                    gdk_draw_rectangle( m_gdkwindow, m_penGC, FALSE, xx, yy-1, ww, hh );
-                }
-                else
-                {
-                    gdk_draw_rectangle( m_gdkwindow, m_penGC, FALSE, xx, yy, ww-2, hh-2 );
-                    gdk_draw_rectangle( m_gdkwindow, m_penGC, FALSE, xx-1, yy-1, ww, hh );
-                }
-
-                // reset
-                gdk_gc_set_line_attributes( m_penGC, 2, GDK_LINE_SOLID, GDK_CAP_ROUND, GDK_JOIN_ROUND );
-            }
-            else
-            {
-                // Just use X11 for other cases
-                gdk_draw_rectangle( m_gdkwindow, m_penGC, FALSE, xx, yy, ww-1, hh-1 );
-            }
+            gdk_draw_rectangle(m_gdkwindow, m_penGC, false, xx, yy, ww - 1, hh - 1);
         }
     }
 
@@ -1687,7 +1664,13 @@ void wxWindowDCImpl::SetPen( const wxPen &pen )
         case wxJOIN_BEVEL: { joinStyle = GDK_JOIN_BEVEL; break; }
         case wxJOIN_MITER: { joinStyle = GDK_JOIN_MITER; break; }
         case wxJOIN_ROUND:
-        default:           { joinStyle = GDK_JOIN_ROUND; break; }
+        default:
+            break;
+    }
+    if (width < 3)
+    {
+        // width 2 rounded join looks bad on X11 (missing one corner pixel)
+        joinStyle = GDK_JOIN_MITER;
     }
 
     gdk_gc_set_line_attributes( m_penGC, width, lineStyle, capStyle, joinStyle );
@@ -1884,11 +1867,93 @@ void wxWindowDCImpl::SetPalette( const wxPalette& WXUNUSED(palette) )
     wxFAIL_MSG( wxT("wxWindowDCImpl::SetPalette not implemented") );
 }
 
+void wxWindowDCImpl::UpdateClipBox()
+{
+    int dcWidth, dcHeight;
+    DoGetSize(&dcWidth, &dcHeight);
+    wxRect dcRect(0, 0, dcWidth, dcHeight);
+
+    wxRect r;
+    if ( m_clipping )
+    {
+        if ( !m_currentClippingRegion.IsEmpty() )
+        {
+            r = m_currentClippingRegion.GetBox();
+            // Effective clipping box is an intersection
+            // of current clipping box and DC surface.
+            r.Intersect(dcRect);
+        }
+        else
+        {
+            r = wxRect(0, 0, 0, 0);
+        }
+    }
+    else
+    {
+        if ( m_currentClippingRegion.IsEmpty() )
+        {
+            // Clipping box is just a DC surface.
+            r = dcRect;
+        }
+    }
+
+    if ( r.IsEmpty() )
+    {
+        m_clipX1 = m_clipY1 = m_clipX2 = m_clipY2 = 0;
+    }
+    else
+    {
+        m_clipX1 = DeviceToLogicalX(r.GetLeft());
+        m_clipY1 = DeviceToLogicalY(r.GetTop());
+        m_clipX2 = m_clipX1 + DeviceToLogicalXRel(r.GetWidth());
+        m_clipY2 = m_clipY1 + DeviceToLogicalYRel(r.GetHeight());
+    }
+    m_isClipBoxValid = true;
+}
+
+void wxWindowDCImpl::DoGetClippingBox(wxCoord *x, wxCoord *y, wxCoord *w, wxCoord *h) const
+{
+    wxCHECK_RET( IsOk(), wxS("invalid window dc") );
+
+    // Check if we should try to retrieve the clipping region possibly not set
+    // by our SetClippingRegion() but preset or modified by application: this
+    // can happen when wxDC logical coordinates are transformed with
+    // SetDeviceOrigin(), SetLogicalOrigin(), SetUserScale(), SetLogicalScale().
+    if ( !m_isClipBoxValid )
+    {
+        wxWindowDCImpl *self = wxConstCast(this, wxWindowDCImpl);
+        self->UpdateClipBox();
+    }
+
+    if ( x )
+        *x = m_clipX1;
+    if ( y )
+        *y = m_clipY1;
+    if ( w )
+        *w = m_clipX2 - m_clipX1;
+    if ( h )
+        *h = m_clipY2 - m_clipY1;
+}
+
 void wxWindowDCImpl::DoSetClippingRegion( wxCoord x, wxCoord y, wxCoord width, wxCoord height )
 {
     wxCHECK_RET( IsOk(), wxT("invalid window dc") );
 
     if (!m_gdkwindow) return;
+
+    // For internal calculations we need to have box definition
+    // in the canonical form, with (x,y) pointing to the top-left
+    // corner of the box and with non-negative width and height.
+    if ( width < 0 )
+    {
+        width = -width;
+        x -= (width - 1);
+    }
+    if ( height < 0 )
+    {
+        height = -height;
+        y -= (height - 1);
+    }
 
     wxRect rect;
     rect.x = XLOG2DEV(x);
@@ -1909,12 +1974,6 @@ void wxWindowDCImpl::DoSetDeviceClippingRegion( const wxRegion &region  )
 {
     wxCHECK_RET( IsOk(), wxT("invalid window dc") );
 
-    if (region.Empty())
-    {
-        DestroyClippingRegion();
-        return;
-    }
-
     if (!m_gdkwindow) return;
 
     if (!m_currentClippingRegion.IsNull())
@@ -1926,10 +1985,8 @@ void wxWindowDCImpl::DoSetDeviceClippingRegion( const wxRegion &region  )
     if (!m_paintClippingRegion.IsNull())
         m_currentClippingRegion.Intersect( m_paintClippingRegion );
 #endif
-
-    wxCoord xx, yy, ww, hh;
-    m_currentClippingRegion.GetBox( xx, yy, ww, hh );
-    wxGTKDCImpl::DoSetClippingRegion( xx, yy, ww, hh );
+    m_clipping = true;
+    UpdateClipBox();
 
     GdkRegion* gdkRegion = m_currentClippingRegion.GetRegion();
     gdk_gc_set_clip_region(m_penGC,   gdkRegion);
@@ -1961,6 +2018,8 @@ void wxWindowDCImpl::DestroyClippingRegion()
     gdk_gc_set_clip_region(m_brushGC, gdkRegion);
     gdk_gc_set_clip_region(m_textGC,  gdkRegion);
     gdk_gc_set_clip_region(m_bgGC,    gdkRegion);
+
+    m_isClipBoxValid = false;
 }
 
 void wxWindowDCImpl::Destroy()
@@ -2010,6 +2069,8 @@ void wxWindowDCImpl::ComputeScaleAndOrigin()
         m_pen = wxNullPen;
         SetPen( pen );
     }
+
+    m_isClipBoxValid = false;
 }
 
 // Resolution in pixels per logical inch

@@ -277,6 +277,14 @@
 #   endif
 #endif /* !defined(wxUSE_REGEX) */
 
+#ifndef wxUSE_SECRETSTORE
+#   ifdef wxABORT_ON_CONFIG_ERROR
+#       error "wxUSE_SECRETSTORE must be defined, please read comment near the top of this file."
+#   else
+#       define wxUSE_SECRETSTORE 1
+#   endif
+#endif /* !defined(wxUSE_SECRETSTORE) */
+
 #ifndef wxUSE_STDPATHS
 #   ifdef wxABORT_ON_CONFIG_ERROR
 #       error "wxUSE_STDPATHS must be defined, please read comment near the top of this file."
@@ -364,6 +372,14 @@
 #       define wxUSE_UNICODE 0
 #   endif
 #endif /* !defined(wxUSE_UNICODE) */
+
+#ifndef wxUSE_UNSAFE_WXSTRING_CONV
+#   ifdef wxABORT_ON_CONFIG_ERROR
+#       error "wxUSE_UNSAFE_WXSTRING_CONV must be defined, please read comment near the top of this file."
+#   else
+#       define wxUSE_UNSAFE_WXSTRING_CONV 0
+#   endif
+#endif /* !defined(wxUSE_UNSAFE_WXSTRING_CONV) */
 
 #ifndef wxUSE_URL
 #   ifdef wxABORT_ON_CONFIG_ERROR
@@ -1240,9 +1256,7 @@
    checks use wxUSE_XXX symbols in #if tests.
  */
 
-#if defined(__WXWINCE__)
-#  include "wx/msw/wince/chkconf.h"
-#elif defined(__WINDOWS__)
+#if defined(__WINDOWS__)
 #  include "wx/msw/chkconf.h"
 #  if defined(__WXGTK__)
 #      include "wx/gtk/chkconf.h"
@@ -1549,6 +1563,17 @@
 #   endif
 #endif /* wxUSE_ADDREMOVECTRL */
 
+#if wxUSE_ANIMATIONCTRL
+#   if !wxUSE_STREAMS
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxUSE_ANIMATIONCTRL requires wxUSE_STREAMS"
+#       else
+#           undef wxUSE_ANIMATIONCTRL
+#           define wxUSE_ANIMATIONCTRL 0
+#       endif
+#   endif
+#endif /* wxUSE_ANIMATIONCTRL */
+
 #if wxUSE_BMPBUTTON
 #    if !wxUSE_BUTTON
 #        ifdef wxABORT_ON_CONFIG_ERROR
@@ -1769,6 +1794,20 @@
 #       endif
 #   endif
 #endif /* wxUSE_CALENDARCTRL */
+
+#if wxUSE_DATEPICKCTRL
+    /* Only the generic implementation, not used under MSW and OSX, needs
+     * wxComboCtrl. */
+#   if !wxUSE_COMBOCTRL && (defined(__WXUNIVERSAL__) || \
+            !(defined(__WXMSW__) || defined(__WXOSX_COCOA__)))
+#       ifdef wxABORT_ON_CONFIG_ERROR
+#           error "wxDatePickerCtrl requires wxUSE_COMBOCTRL"
+#       else
+#           undef wxUSE_COMBOCTRL
+#           define wxUSE_COMBOCTRL 1
+#       endif
+#   endif
+#endif /* wxUSE_DATEPICKCTRL */
 
 #if wxUSE_DATEPICKCTRL || wxUSE_TIMEPICKCTRL
 #   if !wxUSE_DATETIME
@@ -2222,7 +2261,7 @@
 #   endif
 #endif /* wxUSE_TREELISTCTRL */
 
-#if wxUSE_WEBVIEW && !(wxUSE_WEBVIEW_WEBKIT || wxUSE_WEBVIEW_IE)
+#if wxUSE_WEBVIEW && !(wxUSE_WEBVIEW_WEBKIT || wxUSE_WEBVIEW_WEBKIT2 || wxUSE_WEBVIEW_IE)
 #   ifdef wxABORT_ON_CONFIG_ERROR
 #       error "wxUSE_WEBVIEW requires at least one backend"
 #   else

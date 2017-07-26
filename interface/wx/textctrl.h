@@ -29,8 +29,6 @@
 
 // automatically detect the URLs and generate the events when mouse is
 // moved/clicked over an URL
-//
-// this is for Win32 richedit and wxGTK2 multiline controls only so far
 #define wxTE_AUTO_URL       0x1000
 
 // by default, the Windows text control doesn't show the selection when it
@@ -960,16 +958,14 @@ public:
     @style{wxTE_READONLY}
            The text will not be user-editable.
     @style{wxTE_RICH}
-           Use rich text control under Win32, this allows to have more than
-           64KB of text in the control even under Win9x. This style is ignored
-           under other platforms.
+           Use rich text control under MSW, this allows to have more than 64KB
+           of text in the control. This style is ignored under other platforms.
     @style{wxTE_RICH2}
-           Use rich text control version 2.0 or 3.0 under Win32, this style is
+           Use rich text control version 2.0 or higher under MSW, this style is
            ignored under other platforms
     @style{wxTE_AUTO_URL}
            Highlight the URLs and generate the wxTextUrlEvents when mouse
-           events occur over them. This style is only supported for wxTE_RICH
-           Win32 and multi-line wxGTK2 text controls.
+           events occur over them.
     @style{wxTE_NOHIDESEL}
            By default, the Windows text control doesn't show the selection
            when it doesn't have focus - use this style to force it to always
@@ -1091,9 +1087,9 @@ public:
     *control << 123.456 << " some text\n";
     @endcode
 
-    However the possibility to create an ostream associated with wxTextCtrl may
-    be useful if you need to redirect the output of a function taking an
-    ostream as parameter to a text control.
+    However the possibility to create a @c std::ostream associated with wxTextCtrl may
+    be useful if you need to redirect the output of a function taking a
+    @c std::ostream as parameter to a text control.
 
     Another commonly requested need is to redirect @c std::cout to the text
     control. This may be done in the following way:
@@ -1149,8 +1145,7 @@ public:
         pressed in a text control which must have wxTE_PROCESS_ENTER style for
         this event to be generated.
     @event{EVT_TEXT_URL(id, func)}
-        A mouse event occurred over an URL in the text control (wxMSW and
-        wxGTK2 only currently).
+        A mouse event occurred over an URL in the text control.
     @event{EVT_TEXT_MAXLEN(id, func)}
         This event is generated when the user tries to enter more text into the
         control than the limit set by wxTextCtrl::SetMaxLength(), see its description.
@@ -1284,7 +1279,7 @@ public:
         The returned number is the number of logical lines, i.e. just the count
         of the number of newline characters in the control + 1, for wxGTK and
         wxOSX/Cocoa ports while it is the number of physical lines, i.e. the
-        count of lines actually shown in the control, in wxMSW and wxOSX/Carbon.
+        count of lines actually shown in the control, in wxMSW.
         Because of this discrepancy, it is not recommended to use this function.
 
         @remarks
@@ -1481,7 +1476,10 @@ public:
 
     /**
         Changes the default style to use for the new text which is going to be
-        added to the control using WriteText() or AppendText().
+        added to the control.
+
+        This applies both to the text added programmatically using WriteText()
+        or AppendText() and to the text entered by the user interactively.
 
         If either of the font, foreground, or background colour is not set in
         @a style, the values of the previous default style are used for them.
@@ -1615,7 +1613,7 @@ public:
         inheriting wxTextCtrl from @c std::streambuf in which case this class is
         not compiled in.
         You also must have @c wxUSE_STD_IOSTREAM option on (i.e. set to 1) in your
-        @c setup.h to be able to use it. Under Unix, specify @c --enable-std_iostreams
+        @c setup.h to be able to use it. Under Unix, specify @c \--enable-std_iostreams
         switch when running configure for this.
 
     Example of usage:

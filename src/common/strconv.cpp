@@ -27,15 +27,13 @@
 
 #include "wx/strconv.h"
 
-#ifndef __WXWINCE__
 #include <errno.h>
-#endif
 
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 
-#if defined(__WIN32__) && !defined(__WXMICROWIN__)
+#if defined(__WIN32__)
     #include "wx/msw/private.h"
     #include "wx/msw/missing.h"
     #define wxHAVE_WIN32_MB2WC
@@ -82,26 +80,26 @@ static bool NotAllNULs(const char *p, size_t n)
 
 static size_t encode_utf16(wxUint32 input, wxUint16 *output)
 {
-    if (input <= 0xffff)
+    if (wxUniChar::IsBMP(input))
     {
         if (output)
             *output = (wxUint16) input;
 
         return 1;
     }
-    else if (input >= 0x110000)
-    {
-        return wxCONV_FAILED;
-    }
-    else
+    else if (wxUniChar::IsSupplementary(input))
     {
         if (output)
         {
-            *output++ = (wxUint16) ((input >> 10) + 0xd7c0);
-            *output = (wxUint16) ((input & 0x3ff) + 0xdc00);
+            *output++ = wxUniChar::HighSurrogate(input);
+            *output = wxUniChar::LowSurrogate(input);
         }
 
         return 2;
+    }
+    else
+    {
+        return wxCONV_FAILED;
     }
 }
 
@@ -124,18 +122,12 @@ static size_t decode_utf16(const wxUint16* input, wxUint32& output)
     }
 }
 
-#ifdef WC_UTF16
-    typedef wchar_t wxDecodeSurrogate_t;
-#else // !WC_UTF16
-    typedef wxUint16 wxDecodeSurrogate_t;
-#endif // WC_UTF16/!WC_UTF16
-
 // returns the next UTF-32 character from the wchar_t buffer and advances the
 // pointer to the character after this one
 //
 // if an invalid character is found, *pSrc is set to NULL, the caller must
 // check for this
-static wxUint32 wxDecodeSurrogate(const wxDecodeSurrogate_t **pSrc)
+static wxUint32 wxDecodeSurrogate(const wxChar16 **pSrc)
 {
     wxUint32 out;
     const size_t
@@ -490,7 +482,12 @@ wxMBConv::cWC2MB(const wchar_t *inBuff, size_t inLen, size_t *outLen) const
         // the input is not
         wxCharBuffer buf(dstLen + nulLen - 1);
         memset(buf.data() + dstLen, 0, nulLen);
-        if ( FromWChar(buf.data(), dstLen, inBuff, inLen) != wxCONV_FAILED )
+
+        // Notice that return value of the call to FromWChar() here may be
+        // different from the one above as it could have overestimated the
+        // space needed, while what we get here is the exact length.
+        dstLen = FromWChar(buf.data(), dstLen, inBuff, inLen);
+        if ( dstLen != wxCONV_FAILED )
         {
             if ( outLen )
             {
@@ -1124,13 +1121,30 @@ wxMBConvStrictUTF8::FromWChar(char *dst, size_t dstLen,
 
         wxUint32 code;
 #ifdef WC_UTF16
-        // cast is ok for WC_UTF16
-        if ( decode_utf16((const wxUint16 *)wp, code) == 2 )
+        // Be careful here: decode_utf16() may need to read the next wchar_t
+        // but we might not have any left, so pass it a temporary buffer which
+        // always has 2 wide characters and take care to set its second element
+        // to 0, which is invalid as a second half of a surrogate, to ensure
+        // that we return an error when trying to convert a buffer ending with
+        // half of a surrogate.
+        wxUint16 tmp[2];
+        tmp[0] = wp[0];
+        tmp[1] = srcLen != 0 ? wp[1] : 0;
+        switch ( decode_utf16(tmp, code) )
         {
-            // skip the next char too as we decoded a surrogate
-            wp++;
-            if ( srcLen != wxNO_LEN )
-                srcLen--;
+            case 1:
+                // Nothing special to do, just a character from BMP.
+                break;
+
+            case 2:
+                // skip the next char too as we decoded a surrogate
+                wp++;
+                if ( srcLen != wxNO_LEN )
+                    srcLen--;
+                break;
+
+            case wxCONV_FAILED:
+                return wxCONV_FAILED;
         }
 #else // wchar_t is UTF-32
         code = *wp & 0x7fffffff;
@@ -1399,7 +1413,12 @@ size_t wxMBConvUTF8::FromWChar(char *buf, size_t n,
 #ifdef WC_UTF16
         // cast is ok for WC_UTF16
         size_t pa = decode_utf16((const wxUint16 *)psz, cc);
+
+        // we could have consumed two input code units if we decoded a
+        // surrogate, so adjust the input pointer and, if necessary, the length
         psz += (pa == wxCONV_FAILED) ? 1 : pa;
+        if ( pa == 2 && !isNulTerminated )
+            srcLen--;
 #else
         cc = (*psz++) & 0x7fffffff;
 #endif
@@ -1702,8 +1721,18 @@ wxMBConvUTF16swap::ToWChar(wchar_t *dst, size_t dstLen,
         wxUint16 tmp[2];
 
         tmp[0] = wxUINT16_SWAP_ALWAYS(*inBuff);
-        inBuff++;
-        tmp[1] = wxUINT16_SWAP_ALWAYS(*inBuff);
+        if ( ++inBuff < inEnd )
+        {
+            // Normal case, we have a next character to decode.
+            tmp[1] = wxUINT16_SWAP_ALWAYS(*inBuff);
+        }
+        else // End of input.
+        {
+            // Setting the second character to 0 ensures we correctly return
+            // wxCONV_FAILED if the first one is the first half of a surrogate
+            // as the second half can't be 0 in this case.
+            tmp[1] = 0;
+        }
 
         const size_t numChars = decode_utf16(tmp, ch);
         if ( numChars == wxCONV_FAILED )
@@ -1852,18 +1881,6 @@ wxMBConvUTF32straight::FromWChar(char *dst, size_t dstLen,
     if ( srcLen == wxNO_LEN )
         srcLen = wxWcslen(src) + 1;
 
-    if ( !dst )
-    {
-        // optimization: return maximal space which could be needed for this
-        // string instead of the exact amount which could be less if there are
-        // any surrogates in the input
-        //
-        // we consider that surrogates are rare enough to make it worthwhile to
-        // avoid running the loop below at the cost of slightly extra memory
-        // consumption
-        return srcLen * BYTES_PER_CHAR;
-    }
-
     wxUint32 *outBuff = reinterpret_cast<wxUint32 *>(dst);
     size_t outLen = 0;
     for ( const wchar_t * const srcEnd = src + srcLen; src < srcEnd; )
@@ -1874,10 +1891,13 @@ wxMBConvUTF32straight::FromWChar(char *dst, size_t dstLen,
 
         outLen += BYTES_PER_CHAR;
 
-        if ( outLen > dstLen )
-            return wxCONV_FAILED;
+        if ( outBuff )
+        {
+            if ( outLen > dstLen )
+                return wxCONV_FAILED;
 
-        *outBuff++ = ch;
+            *outBuff++ = ch;
+        }
     }
 
     return outLen;
@@ -1930,18 +1950,6 @@ wxMBConvUTF32swap::FromWChar(char *dst, size_t dstLen,
     if ( srcLen == wxNO_LEN )
         srcLen = wxWcslen(src) + 1;
 
-    if ( !dst )
-    {
-        // optimization: return maximal space which could be needed for this
-        // string instead of the exact amount which could be less if there are
-        // any surrogates in the input
-        //
-        // we consider that surrogates are rare enough to make it worthwhile to
-        // avoid running the loop below at the cost of slightly extra memory
-        // consumption
-        return srcLen*BYTES_PER_CHAR;
-    }
-
     wxUint32 *outBuff = reinterpret_cast<wxUint32 *>(dst);
     size_t outLen = 0;
     for ( const wchar_t * const srcEnd = src + srcLen; src < srcEnd; )
@@ -1952,10 +1960,13 @@ wxMBConvUTF32swap::FromWChar(char *dst, size_t dstLen,
 
         outLen += BYTES_PER_CHAR;
 
-        if ( outLen > dstLen )
-            return wxCONV_FAILED;
+        if ( outBuff )
+        {
+            if ( outLen > dstLen )
+                return wxCONV_FAILED;
 
-        *outBuff++ = wxUINT32_SWAP_ALWAYS(ch);
+            *outBuff++ = wxUINT32_SWAP_ALWAYS(ch);
+        }
     }
 
     return outLen;
@@ -2400,7 +2411,7 @@ wxMBConv_iconv::ToWChar(wchar_t *dst, size_t dstLen,
     if (ICONV_FAILED(cres, srcLen))
     {
         //VS: it is ok if iconv fails, hence trace only
-        wxLogTrace(TRACE_STRCONV, wxT("iconv failed: %s"), wxSysErrorMsg(wxSysErrorCode()));
+        wxLogTrace(TRACE_STRCONV, wxT("iconv failed: %s"), wxSysErrorMsgStr(wxSysErrorCode()));
         return wxCONV_FAILED;
     }
 
@@ -2468,7 +2479,7 @@ size_t wxMBConv_iconv::FromWChar(char *dst, size_t dstLen,
 
     if (ICONV_FAILED(cres, inbuflen))
     {
-        wxLogTrace(TRACE_STRCONV, wxT("iconv failed: %s"), wxSysErrorMsg(wxSysErrorCode()));
+        wxLogTrace(TRACE_STRCONV, wxT("iconv failed: %s"), wxSysErrorMsgStr(wxSysErrorCode()));
         return wxCONV_FAILED;
     }
 
@@ -2525,8 +2536,8 @@ bool wxMBConv_iconv::IsUTF8() const
 // from utils.cpp
 #if wxUSE_FONTMAP
 extern WXDLLIMPEXP_BASE long wxCharsetToCodepage(const char *charset);
-extern WXDLLIMPEXP_BASE long wxEncodingToCodepage(wxFontEncoding encoding);
 #endif
+extern WXDLLIMPEXP_BASE long wxEncodingToCodepage(wxFontEncoding encoding);
 
 class wxMBConv_win32 : public wxMBConv
 {
@@ -2550,15 +2561,15 @@ public:
         m_CodePage = wxCharsetToCodepage(name);
         m_minMBCharWidth = 0;
     }
+#endif // wxUSE_FONTMAP
 
     wxMBConv_win32(wxFontEncoding encoding)
     {
         m_CodePage = wxEncodingToCodepage(encoding);
         m_minMBCharWidth = 0;
     }
-#endif // wxUSE_FONTMAP
 
-    virtual size_t MB2WC(wchar_t *buf, const char *psz, size_t n) const
+    virtual size_t MB2WC(wchar_t *buf, const char *psz, size_t n) const wxOVERRIDE
     {
         // note that we have to use MB_ERR_INVALID_CHARS flag as it without it
         // the behaviour is not compatible with the Unix version (using iconv)
@@ -2597,7 +2608,7 @@ public:
         return len - 1;
     }
 
-    virtual size_t WC2MB(char *buf, const wchar_t *pwz, size_t n) const
+    virtual size_t WC2MB(char *buf, const wchar_t *pwz, size_t n) const wxOVERRIDE
     {
         /*
             We need to WC_NO_BEST_FIT_CHARS to prevent WideCharToMultiByte()
@@ -2682,7 +2693,7 @@ public:
         return len - 1;
     }
 
-    virtual size_t GetMBNulLen() const
+    virtual size_t GetMBNulLen() const wxOVERRIDE
     {
         if ( m_minMBCharWidth == 0 )
         {
@@ -2721,7 +2732,7 @@ public:
         return m_minMBCharWidth;
     }
 
-    virtual wxMBConv *Clone() const { return new wxMBConv_win32(*this); }
+    virtual wxMBConv *Clone() const wxOVERRIDE { return new wxMBConv_win32(*this); }
 
     bool IsOk() const { return m_CodePage != -1; }
 
@@ -3073,13 +3084,13 @@ wxMBConv *wxCSConv::DoCreate() const
 #if wxUSE_FONTMAP
         wxMBConv_win32 *conv = m_name ? new wxMBConv_win32(m_name)
                                       : new wxMBConv_win32(m_encoding);
+#else
+        wxMBConv_win32* conv = new wxMBConv_win32(m_encoding);
+#endif
         if ( conv->IsOk() )
             return conv;
 
         delete conv;
-#else
-        return NULL;
-#endif
     }
 #endif // wxHAVE_WIN32_MB2WC
 
@@ -3251,35 +3262,39 @@ bool wxCSConv::IsUTF8() const
 #endif
 
 
-#if wxUSE_UNICODE
+// ============================================================================
+// wxWhateverWorksConv
+// ============================================================================
 
-wxWCharBuffer wxSafeConvertMB2WX(const char *s)
+size_t
+wxWhateverWorksConv::ToWChar(wchar_t *dst, size_t dstLen,
+                             const char *src, size_t srcLen) const
 {
-    if ( !s )
-        return wxWCharBuffer();
+    size_t rc = wxConvUTF8.ToWChar(dst, dstLen, src, srcLen);
+    if ( rc != wxCONV_FAILED )
+        return rc;
 
-    wxWCharBuffer wbuf(wxConvLibc.cMB2WX(s));
-    if ( !wbuf )
-        wbuf = wxMBConvUTF8().cMB2WX(s);
-    if ( !wbuf )
-        wbuf = wxConvISO8859_1.cMB2WX(s);
+    rc = wxConvLibc.ToWChar(dst, dstLen, src, srcLen);
+    if ( rc != wxCONV_FAILED )
+        return rc;
 
-    return wbuf;
+    rc = wxConvISO8859_1.ToWChar(dst, dstLen, src, srcLen);
+
+    return rc;
 }
 
-wxCharBuffer wxSafeConvertWX2MB(const wchar_t *ws)
+size_t
+wxWhateverWorksConv::FromWChar(char *dst, size_t dstLen,
+                               const wchar_t *src, size_t srcLen) const
 {
-    if ( !ws )
-        return wxCharBuffer();
+    size_t rc = wxConvLibc.FromWChar(dst, dstLen, src, srcLen);
+    if ( rc != wxCONV_FAILED )
+        return rc;
 
-    wxCharBuffer buf(wxConvLibc.cWX2MB(ws));
-    if ( !buf )
-        buf = wxMBConvUTF8(wxMBConvUTF8::MAP_INVALID_UTF8_TO_OCTAL).cWX2MB(ws);
+    rc = wxConvUTF8.FromWChar(dst, dstLen, src, srcLen);
 
-    return buf;
+    return rc;
 }
-
-#endif // wxUSE_UNICODE
 
 // ----------------------------------------------------------------------------
 // globals
@@ -3295,6 +3310,7 @@ wxCharBuffer wxSafeConvertWX2MB(const wchar_t *ws)
 #undef wxConvLibc
 #undef wxConvUTF8
 #undef wxConvUTF7
+#undef wxConvWhateverWorks
 #undef wxConvLocal
 #undef wxConvISO8859_1
 
@@ -3334,6 +3350,7 @@ wxCharBuffer wxSafeConvertWX2MB(const wchar_t *ws)
 //     empty statement (and hope that no compilers warns about this)
 WX_DEFINE_GLOBAL_CONV(wxMBConvStrictUTF8, wxConvUTF8, ;);
 WX_DEFINE_GLOBAL_CONV(wxMBConvUTF7, wxConvUTF7, ;);
+WX_DEFINE_GLOBAL_CONV(wxWhateverWorksConv, wxConvWhateverWorks, ;);
 
 WX_DEFINE_GLOBAL_CONV(wxCSConv, wxConvLocal, (wxFONTENCODING_SYSTEM));
 WX_DEFINE_GLOBAL_CONV(wxCSConv, wxConvISO8859_1, (wxFONTENCODING_ISO8859_1));
@@ -3352,5 +3369,5 @@ WXDLLIMPEXP_DATA_BASE(wxMBConv *) wxConvFileName =
 #ifdef __DARWIN__
                                     &wxConvMacUTF8DObj;
 #else // !__DARWIN__
-                                    wxGet_wxConvLibcPtr();
+                                    wxGet_wxConvWhateverWorksPtr();
 #endif // __DARWIN__/!__DARWIN__

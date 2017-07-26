@@ -24,8 +24,11 @@
 #include <mshtml.h>
 #include "wx/msw/registry.h"
 #include "wx/msw/missing.h"
+#include "wx/msw/ole/safearray.h"
 #include "wx/filesys.h"
 #include "wx/dynlib.h"
+#include "wx/scopeguard.h"
+
 #include <initguid.h>
 #include <wininet.h>
 
@@ -141,18 +144,39 @@ void wxWebViewIE::LoadURL(const wxString& url)
     m_ie.CallMethod("Navigate", wxConvertStringToOle(url));
 }
 
+namespace
+{
+
+// Helper function: wrap the given string in a SAFEARRAY<VARIANT> of size 1.
+SAFEARRAY* MakeOneElementVariantSafeArray(const wxString& str)
+{
+    wxSafeArray<VT_VARIANT> sa;
+    if ( !sa.Create(1) )
+    {
+        wxLogLastError(wxT("SafeArrayCreateVector"));
+        return NULL;
+    }
+
+    long ind = 0;
+    if ( !sa.SetElement(&ind, str) )
+    {
+        wxLogLastError(wxT("SafeArrayPtrOfIndex"));
+        return NULL;
+    }
+
+    return sa.Detach();
+}
+
+} // anonymous namespace
+
 void wxWebViewIE::DoSetPage(const wxString& html, const wxString& baseUrl)
 {
-    BSTR bstr = SysAllocString(OLESTR(""));
-    SAFEARRAY *psaStrings = SafeArrayCreateVector(VT_VARIANT, 0, 1);
-    if (psaStrings != NULL)
     {
-        VARIANT *param;
-        HRESULT hr = SafeArrayAccessData(psaStrings, (LPVOID*)&param);
-        param->vt = VT_BSTR;
-        param->bstrVal = bstr;
+        SAFEARRAY* const psaStrings = MakeOneElementVariantSafeArray(wxString());
+        if ( !psaStrings )
+            return;
 
-        hr = SafeArrayUnaccessData(psaStrings);
+        wxON_BLOCK_EXIT1(SafeArrayDestroy, psaStrings);
 
         wxCOMPtr<IHTMLDocument2> document(GetDocument());
 
@@ -161,50 +185,34 @@ void wxWebViewIE::DoSetPage(const wxString& html, const wxString& baseUrl)
 
         document->write(psaStrings);
         document->close();
-
-        SafeArrayDestroy(psaStrings);
-
-        bstr = SysAllocString(html.wc_str());
-
-        // Creates a new one-dimensional array
-        psaStrings = SafeArrayCreateVector(VT_VARIANT, 0, 1);
-        if (psaStrings != NULL)
-        {
-            hr = SafeArrayAccessData(psaStrings, (LPVOID*)&param);
-            param->vt = VT_BSTR;
-            param->bstrVal = bstr;
-            hr = SafeArrayUnaccessData(psaStrings);
-
-            document = GetDocument();
-
-            if(!document)
-                return;
-
-            document->write(psaStrings);
-
-            // SafeArrayDestroy calls SysFreeString for each BSTR
-            SafeArrayDestroy(psaStrings);
-
-            //We send the events when we are done to mimic webkit
-            //Navigated event
-            wxWebViewEvent event(wxEVT_WEBVIEW_NAVIGATED,
-                                 GetId(), baseUrl, "");
-            event.SetEventObject(this);
-            HandleWindowEvent(event);
-
-            //Document complete event
-            event.SetEventType(wxEVT_WEBVIEW_LOADED);
-            event.SetEventObject(this);
-            HandleWindowEvent(event);
-        }
-        else
-        {
-            wxLogError("wxWebViewIE::SetPage() : psaStrings is NULL");
-        }
     }
-    else
+
     {
-        wxLogError("wxWebViewIE::SetPage() : psaStrings is NULL during clear");
+        SAFEARRAY* const psaStrings = MakeOneElementVariantSafeArray(html);
+
+        if ( !psaStrings )
+            return;
+
+        wxON_BLOCK_EXIT1(SafeArrayDestroy, psaStrings);
+
+        wxCOMPtr<IHTMLDocument2> document(GetDocument());
+
+        if(!document)
+            return;
+
+        document->write(psaStrings);
+
+        //We send the events when we are done to mimic webkit
+        //Navigated event
+        wxWebViewEvent event(wxEVT_WEBVIEW_NAVIGATED,
+                             GetId(), baseUrl, "");
+        event.SetEventObject(this);
+        HandleWindowEvent(event);
+
+        //Document complete event
+        event.SetEventType(wxEVT_WEBVIEW_LOADED);
+        event.SetEventObject(this);
+        HandleWindowEvent(event);
     }
 }
 
@@ -223,9 +231,9 @@ wxString wxWebViewIE::GetPageSource() const
             hr = bodyTag->get_parentElement(&htmlTag);
             if(SUCCEEDED(hr))
             {
-                BSTR bstr;
-                htmlTag->get_outerHTML(&bstr);
-                source = wxString(bstr);
+                wxBasicString bstr;
+                if ( htmlTag->get_outerHTML(bstr.ByRef()) == S_OK )
+                    source = bstr;
             }
         }
         return source;
@@ -565,16 +573,15 @@ wxString wxWebViewIE::GetCurrentTitle() const
 {
     wxCOMPtr<IHTMLDocument2> document(GetDocument());
 
+    wxString s;
     if(document)
     {
-        BSTR title;
-        document->get_nameProp(&title);
-        return wxString(title);
+        wxBasicString title;
+        if ( document->get_nameProp(title.ByRef()) == S_OK )
+            s = title;
     }
-    else
-    {
-        return "";
-    }
+
+    return s;
 }
 
 bool wxWebViewIE::CanCut() const
@@ -685,9 +692,9 @@ void wxWebViewIE::SetEditable(bool enable)
     if(document)
     {
         if( enable )
-            document->put_designMode(SysAllocString(L"On"));
+            document->put_designMode(wxBasicString("On"));
         else
-            document->put_designMode(SysAllocString(L"Off"));
+            document->put_designMode(wxBasicString("Off"));
 
     }
 }
@@ -698,17 +705,14 @@ bool wxWebViewIE::IsEditable() const
 
     if(document)
     {
-        BSTR mode;
-        document->get_designMode(&mode);
-        if(wxString(mode) == "On")
-            return true;
-        else
-            return false;
+        wxBasicString mode;
+        if ( document->get_designMode(mode.ByRef()) == S_OK )
+        {
+            if ( wxString(mode) == "On" )
+                return true;
+        }
     }
-    else
-    {
-        return false;
-    }
+    return false;
 }
 
 void wxWebViewIE::SelectAll()
@@ -727,9 +731,9 @@ bool wxWebViewIE::HasSelection() const
         HRESULT hr = document->get_selection(&selection);
         if(SUCCEEDED(hr))
         {
-            BSTR type;
-            selection->get_type(&type);
-            sel = wxString(type);
+            wxBasicString type;
+            if ( selection->get_type(type.ByRef()) == S_OK )
+                sel = type;
         }
         return sel != "None";
     }
@@ -763,9 +767,9 @@ wxString wxWebViewIE::GetSelectedText() const
                 hr = disrange->QueryInterface(IID_IHTMLTxtRange, (void**)&range);
                 if(SUCCEEDED(hr))
                 {
-                    BSTR text;
-                    range->get_text(&text);
-                    selected = wxString(text);
+                    wxBasicString text;
+                    if ( range->get_text(text.ByRef()) == S_OK )
+                        selected = text;
                 }
             }
         }
@@ -796,9 +800,9 @@ wxString wxWebViewIE::GetSelectedSource() const
                 hr = disrange->QueryInterface(IID_IHTMLTxtRange, (void**)&range);
                 if(SUCCEEDED(hr))
                 {
-                    BSTR text;
-                    range->get_htmlText(&text);
-                    selected = wxString(text);
+                    wxBasicString text;
+                    if ( range->get_htmlText(text.ByRef()) == S_OK )
+                        selected = text;
                 }
             }
         }
@@ -837,9 +841,9 @@ wxString wxWebViewIE::GetPageText() const
         HRESULT hr = document->get_body(&body);
         if(SUCCEEDED(hr))
         {
-            BSTR out;
-            body->get_innerText(&out);
-            text = wxString(out);
+            wxBasicString out;
+            if ( body->get_innerText(out.ByRef()) == S_OK )
+                text = out;
         }
         return text;
     }
@@ -863,8 +867,8 @@ void wxWebViewIE::RunScript(const wxString& javascript)
             VARIANT level;
             VariantInit(&level);
             V_VT(&level) = VT_EMPTY;
-            window->execScript(SysAllocString(javascript.wc_str()),
-                               SysAllocString(language.wc_str()),
+            window->execScript(wxBasicString(javascript),
+                               wxBasicString(language),
                                &level);
         }
     }
@@ -909,7 +913,7 @@ bool wxWebViewIE::CanExecCommand(wxString command) const
     {
         VARIANT_BOOL enabled;
 
-        document->queryCommandEnabled(SysAllocString(command.wc_str()), &enabled);
+        document->queryCommandEnabled(wxBasicString(command), &enabled);
 
         return (enabled == VARIANT_TRUE);
     }
@@ -926,7 +930,7 @@ void wxWebViewIE::ExecCommand(wxString command)
 
     if(document)
     {
-        document->execCommand(SysAllocString(command.wc_str()), VARIANT_FALSE, VARIANT(), NULL);
+        document->execCommand(wxBasicString(command), VARIANT_FALSE, VARIANT(), NULL);
     }
 }
 
@@ -945,8 +949,7 @@ wxCOMPtr<IHTMLDocument2> wxWebViewIE::GetDocument() const
 
 bool wxWebViewIE::IsElementVisible(wxCOMPtr<IHTMLElement> elm)
 {
-    wxCOMPtr<IHTMLElement> elm1 = elm;
-    BSTR tmp_bstr;
+    wxCOMPtr<IHTMLElement> elm1 = elm;   
     bool is_visible = true;
     //This method is not perfect but it does discover most of the hidden elements.
     //so if a better solution is found, then please do improve.
@@ -958,15 +961,18 @@ bool wxWebViewIE::IsElementVisible(wxCOMPtr<IHTMLElement> elm)
             wxCOMPtr<wxIHTMLCurrentStyle> style;
             if(SUCCEEDED(elm2->get_currentStyle(&style)))
             {
+                wxBasicString display_bstr;
+                wxBasicString visibility_bstr;
+
                 //Check if the object has the style display:none.
-                if((style->get_display(&tmp_bstr) != S_OK) || 
-                   (tmp_bstr != NULL && (wxCRT_StricmpW(tmp_bstr, L"none") == 0)))
+                if((style->get_display(display_bstr.ByRef()) != S_OK) || 
+                    wxString(display_bstr).IsSameAs(wxS("none"), false))
                 {
                     is_visible = false;
                 }
                 //Check if the object has the style visibility:hidden.
-                if((is_visible && (style->get_visibility(&tmp_bstr) != S_OK)) ||
-                  (tmp_bstr != NULL && wxCRT_StricmpW(tmp_bstr, L"hidden") == 0))
+                if((is_visible && (style->get_visibility(visibility_bstr.ByRef()) != S_OK)) ||
+                    wxString(visibility_bstr).IsSameAs(wxS("hidden"), false))
                 {
                     is_visible = false;
                 }
@@ -1003,8 +1009,9 @@ void wxWebViewIE::FindInternal(const wxString& text, int flags, int internal_fla
         if(SUCCEEDED(document->QueryInterface(wxIID_IMarkupContainer, (void **)&pIMC)))
         {
             wxCOMPtr<wxIMarkupPointer> ptrBegin, ptrEnd;
-            BSTR attr_bstr = SysAllocString(L"style=\"background-color:#ffff00\"");
-            BSTR text_bstr = SysAllocString(text.wc_str());
+            wxBasicString attr_bstr(wxS("style=\"background-color:#ffff00\""));
+            wxBasicString text_bstr(text);
+            
             pIMS->CreateMarkupPointer(&ptrBegin);
             pIMS->CreateMarkupPointer(&ptrEnd);
 
@@ -1060,9 +1067,6 @@ void wxWebViewIE::FindInternal(const wxString& text, int flags, int internal_fla
                 }
                 ptrBegin->MoveToPointer(ptrEnd);
             }
-            //Clean up.
-            SysFreeString(text_bstr);
-            SysFreeString(attr_bstr);
         }
     }
 }
@@ -1244,7 +1248,7 @@ void wxWebViewIE::onActiveXEvent(wxActiveXEvent& evt)
         {
             wxString url = evt[1].GetString();
             // TODO: set target parameter if possible
-            wxString target = wxEmptyString;
+            wxString target;
             wxWebViewEvent event(wxEVT_WEBVIEW_NAVIGATED,
                                  GetId(), url, target);
             event.SetEventObject(this);
@@ -1295,7 +1299,7 @@ void wxWebViewIE::onActiveXEvent(wxActiveXEvent& evt)
             //Reset the find values.
             FindClear();
             // TODO: set target parameter if possible
-            wxString target = wxEmptyString;
+            wxString target;
             wxWebViewEvent event(wxEVT_WEBVIEW_LOADED, GetId(),
                                  url, target);
             event.SetEventObject(this);

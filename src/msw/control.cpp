@@ -206,13 +206,9 @@ bool wxControl::MSWCreateControl(const wxChar *classname,
 
         if ( testFont )
         {
-            // not sure if we need to explicitly set the font here for Win95/NT4
-            // but we definitely can't do it for any newer version
+            // we can't explicitly set the font here
             // see wxGetCCDefaultFont() in src/msw/settings.cpp for explanation
             // of why this test works
-
-            // TODO: test Win95/NT4 to see if this is needed or breaks the
-            // font resizing as it does on newer versions
             if ( font != wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT) )
             {
                 setFont = false;
@@ -253,43 +249,12 @@ wxSize wxControl::DoGetBestSize() const
     if (m_windowSizer)
        return wxControlBase::DoGetBestSize();
 
-    return wxSize(DEFAULT_ITEM_WIDTH, DEFAULT_ITEM_HEIGHT);
+    return FromDIP(wxSize(DEFAULT_ITEM_WIDTH, DEFAULT_ITEM_HEIGHT));
 }
 
 wxBorder wxControl::GetDefaultBorder() const
 {
     return wxControlBase::GetDefaultBorder();
-}
-
-// This is a helper for all wxControls made with UPDOWN native control.
-// In wxMSW it was only wxSpinCtrl derived from wxSpinButton but in
-// WinCE of Smartphones this happens also for native wxTextCtrl,
-// wxChoice and others.
-wxSize wxControl::GetBestSpinnerSize(const bool is_vertical) const
-{
-    // take size according to layout
-    wxSize bestSize(
-#if defined(__SMARTPHONE__) && defined(__WXWINCE__)
-                    0,GetCharHeight()
-#else
-                    ::GetSystemMetrics(is_vertical ? SM_CXVSCROLL : SM_CXHSCROLL),
-                    ::GetSystemMetrics(is_vertical ? SM_CYVSCROLL : SM_CYHSCROLL)
-#endif
-    );
-
-    // correct size as for undocumented MSW variants cases (WinCE and perhaps others)
-    if (bestSize.x==0)
-        bestSize.x = bestSize.y;
-    if (bestSize.y==0)
-        bestSize.y = bestSize.x;
-
-    // double size according to layout
-    if (is_vertical)
-        bestSize.y *= 2;
-    else
-        bestSize.x *= 2;
-
-    return bestSize;
 }
 
 /* static */ wxVisualAttributes

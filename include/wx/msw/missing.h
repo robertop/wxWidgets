@@ -176,13 +176,16 @@
     #define LVS_EX_FULLROWSELECT 0x00000020
 #endif
 
-// LVS_EX_LABELTIP is not supported by Windows CE, don't define it there
-#if !defined(LVS_EX_LABELTIP) && !defined(__WXWINCE__)
+#if !defined(LVS_EX_LABELTIP)
     #define LVS_EX_LABELTIP 0x00004000
 #endif
 
 #ifndef LVS_EX_SUBITEMIMAGES
     #define LVS_EX_SUBITEMIMAGES 0x00000002
+#endif
+
+#ifndef LVS_EX_DOUBLEBUFFER
+    #define LVS_EX_DOUBLEBUFFER 0x00010000
 #endif
 
 #ifndef HDN_GETDISPINFOW
@@ -194,6 +197,9 @@
 #endif
 #ifndef HDS_FLAT
     #define HDS_FLAT 0x0200
+#endif
+#ifndef HDS_NOSIZING
+    #define HDS_NOSIZING 0x0800
 #endif
 
 #ifndef HDF_SORTUP
@@ -216,10 +222,6 @@
 #if !defined(TB_SETDISABLEDIMAGELIST)
     #define TB_SETDISABLEDIMAGELIST (WM_USER + 54)
 #endif // !defined(TB_SETDISABLEDIMAGELIST)
-
-#ifndef CFM_BACKCOLOR
-    #define CFM_BACKCOLOR 0x04000000
-#endif
 
 #ifndef HANGUL_CHARSET
     #define HANGUL_CHARSET 129
@@ -399,14 +401,6 @@ typedef struct
 
 #ifndef MUI_LANGUAGE_NAME
 #define MUI_LANGUAGE_NAME 0x8
-#endif
-
- /*
-  * In addition to the declarations for VC++, the following are required for WinCE
-  */
-
-#ifdef __WXWINCE__
-    #include "wx/msw/wince/missing.h"
 #endif
 
  /*

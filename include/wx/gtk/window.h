@@ -14,6 +14,7 @@
 #ifdef __WXGTK3__
     typedef struct _cairo cairo_t;
     typedef struct _GtkStyleProvider GtkStyleProvider;
+    typedef struct _GtkCssProvider GtkCssProvider;
     #define WXUNUSED_IN_GTK2(x) x
     #define WXUNUSED_IN_GTK3(x)
 #else
@@ -64,6 +65,7 @@ public:
     virtual void Lower() wxOVERRIDE;
 
     virtual bool Show( bool show = true ) wxOVERRIDE;
+    virtual bool IsShown() const wxOVERRIDE;
 
     virtual bool IsRetained() const wxOVERRIDE;
 
@@ -91,6 +93,7 @@ public:
 
     virtual int GetCharHeight() const wxOVERRIDE;
     virtual int GetCharWidth() const wxOVERRIDE;
+    virtual double GetContentScaleFactor() const wxOVERRIDE;
 
     virtual void SetScrollbar( int orient, int pos, int thumbVisible,
                                int range, bool refresh = true ) wxOVERRIDE;
@@ -383,6 +386,7 @@ protected:
     virtual void DoFreeze() wxOVERRIDE;
     virtual void DoThaw() wxOVERRIDE;
 
+    void GTKConnectFreezeWidget(GtkWidget* widget);
     void GTKFreezeWidget(GtkWidget *w);
     void GTKThawWidget(GtkWidget *w);
     void GTKDisconnect(void* instance);
@@ -406,7 +410,11 @@ protected:
     // Copies m_children tab order to GTK focus chain:
     void RealizeTabOrder();
 
-#ifndef __WXGTK3__
+#ifdef __WXGTK3__
+    // Use the given CSS string for styling the widget. The provider must be
+    // allocated, and remains owned, by the caller.
+    void ApplyCssStyle(GtkCssProvider* provider, const char* style);
+#else // GTK+ < 3
     // Called by ApplyWidgetStyle (which is called by SetFont() and
     // SetXXXColour etc to apply style changed to native widgets) to create
     // modified GTK style with non-standard attributes.
@@ -435,6 +443,8 @@ protected:
 #ifdef __WXGTK3__
     static GdkWindow* GTKFindWindow(GtkWidget* widget);
     static void GTKFindWindow(GtkWidget* widget, wxArrayGdkWindows& windows);
+
+    bool m_needSizeEvent;
 #endif
 
 private:

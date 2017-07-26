@@ -81,9 +81,7 @@
 
 #ifdef __WINDOWS__
     #include <winnls.h>
-    #ifndef __WXWINCE__
-        #include <locale.h>
-    #endif
+    #include <locale.h>
 #endif
 
 #include "wx/datetime.h"
@@ -800,7 +798,6 @@ void wxDateTime::GetAmPmStrings(wxString *am, wxString *pm)
 wxDateTime::Country wxDateTime::GetCountry()
 {
     // TODO use LOCALE_ICOUNTRY setting under Win32
-#ifndef __WXWINCE__
     if ( ms_country == Country_Unknown )
     {
         // try to guess from the time zone name
@@ -835,9 +832,6 @@ wxDateTime::Country wxDateTime::GetCountry()
             ms_country = USA;
         }
     }
-#else // __WXWINCE__
-     ms_country = USA;
-#endif // !__WXWINCE__/__WXWINCE__
 
     return ms_country;
 }
@@ -2070,14 +2064,9 @@ wxDateTime& wxDateTime::MakeTimezone(const TimeZone& tz, bool noDST)
     // include the DST offset (as it varies depending on the date), so we have
     // to handle DST manually, unless a special flag inhibiting this was
     // specified.
-    //
-    // Notice that we also shouldn't add the DST offset if we're already in the
-    // local time zone, as indicated by offset of 0, converting from local time
-    // to local time zone shouldn't change it, whether DST is in effect or not.
-    if ( !noDST && secDiff && (IsDST() == 1) )
+    if ( !noDST && (IsDST() == 1) )
     {
-        // FIXME we assume that the DST is always shifted by 1 hour
-        secDiff -= 3600;
+        secDiff -= DST_OFFSET;
     }
 
     return Add(wxTimeSpan::Seconds(secDiff));
@@ -2088,10 +2077,9 @@ wxDateTime& wxDateTime::MakeFromTimezone(const TimeZone& tz, bool noDST)
     long secDiff = wxGetTimeZone() + tz.GetOffset();
 
     // See comment in MakeTimezone() above, the logic here is exactly the same.
-    if ( !noDST && secDiff && (IsDST() == 1) )
+    if ( !noDST && (IsDST() == 1) )
     {
-        // FIXME we assume that the DST is always shifted by 1 hour
-        secDiff -= 3600;
+        secDiff -= DST_OFFSET;
     }
 
     return Subtract(wxTimeSpan::Seconds(secDiff));

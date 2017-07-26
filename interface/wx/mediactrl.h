@@ -197,14 +197,13 @@ public:
 
     - @b wxMEDIABACKEND_DIRECTSHOW: Use ActiveMovie/DirectShow.
       Uses the native ActiveMovie (I.E. DirectShow) control.
-      Default backend on Windows and supported by nearly all Windows versions,
-      even some Windows CE versions.
+      Default backend on Windows and supported by nearly all Windows versions.
       May display a windows media player logo while inactive.
     - @b wxMEDIABACKEND_QUICKTIME: Use QuickTime. Mac Only.
       WARNING: May not working correctly embedded in a wxNotebook.
     - @b wxMEDIABACKEND_GSTREAMER, Use GStreamer. Unix Only.
-      Requires GStreamer 0.8 along with at the very least the xvimagesink, xoverlay,
-      and gst-play modules of gstreamer to function.
+      Requires GStreamer 0.10 along with at the very least the xvimagesink,
+      xoverlay and gst-play modules of gstreamer to function.
       You need the correct modules to play the relevant files, for example the
       mad module to play mp3s, etc.
     - @b wxMEDIABACKEND_WMP10, Uses Windows Media Player 10 (Windows only) -
@@ -227,7 +226,7 @@ public:
 
     The only real tricky part is that you need to make sure the file in compiled in,
     which if there are just backends in there will not happen and you may need to
-    use a force link hack (see http://www.wxwidgets.org/wiki/index.php/RTTI).
+    use a force link hack (see https://wiki.wxwidgets.org/RTTI).
 
     This is a rather simple example of how to create a backend in the
     wxActiveXContainer documentation.
@@ -373,13 +372,13 @@ public:
     /**
         Same as Load(const wxURI& uri). Kept for wxPython compatibility.
     */
-    bool LoadURI(const wxString& fileName);
+    bool LoadURI(const wxString& uri);
 
     /**
         Same as Load(const wxURI& uri, const wxURI& proxy).
         Kept for wxPython compatibility.
     */
-    bool LoadURIWithProxy(const wxString& fileName, const wxString& proxy);
+    bool LoadURIWithProxy(const wxString& uri, const wxString& proxy);
 
     /**
         Pauses playback of the movie.

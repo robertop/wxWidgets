@@ -140,10 +140,10 @@ public:
     */
     virtual wxWindow* GetParentWindow() const;
 
-    //@{
     /**
-        Initializes the help instance with a help filename, and optionally a server
-        socket number if using wxHelp (now obsolete). Does not invoke the help viewer.
+        Initializes the help instance with a help filename.
+
+        Does not invoke the help viewer.
         This must be called directly after the help instance object is created and
         before any attempts to communicate with the viewer.
 
@@ -152,8 +152,6 @@ public:
         while searching for a suitable file. For WinHelp, the hlp extension is appended.
     */
     virtual bool Initialize(const wxString& file);
-    virtual bool Initialize(const wxString& file, int server);
-    //@}
 
     /**
         If the help viewer is not running, runs it, and searches for sections matching
@@ -265,7 +263,6 @@ public:
     An appropriate class is aliased to the name wxHelpController for each platform, as
     follows:
     - On desktop Windows, wxCHMHelpController is used (MS HTML Help).
-    - On Windows CE, wxWinceHelpController is used.
     - On all other platforms, wxHtmlHelpController is used if wxHTML is compiled
       into wxWidgets; otherwise wxExtHelpController is used (for invoking an
       external browser).
@@ -285,8 +282,6 @@ public:
       HTB versions of the help file. For wxMSW only.
     - wxExtHelpController, for controlling external browsers under Unix.
       The default browser is Netscape Navigator. The 'help' sample shows its use.
-    - wxWinceHelpController, for controlling a simple @c .htm help controller for
-      Windows CE applications.
     - wxHtmlHelpController, a sophisticated help controller using wxHTML, in a
       similar style to the Microsoft HTML Help viewer and using some of the same
       files. Although it has an API compatible with other help controllers, it has

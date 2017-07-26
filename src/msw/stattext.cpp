@@ -100,11 +100,6 @@ wxSize wxStaticText::DoGetBestClientSize() const
     wxCoord widthTextMax, heightTextTotal;
     dc.GetMultiLineTextExtent(GetLabelText(), &widthTextMax, &heightTextTotal);
 
-#ifdef __WXWINCE__
-    if ( widthTextMax )
-        widthTextMax += 2;
-#endif // __WXWINCE__
-
     // This extra pixel is a hack we use to ensure that a wxStaticText
     // vertically centered around the same position as a wxTextCtrl shows its
     // text on exactly the same baseline. It is not clear why is this needed
@@ -125,8 +120,16 @@ wxSize wxStaticText::DoGetBestClientSize() const
 
 void wxStaticText::DoSetSize(int x, int y, int w, int h, int sizeFlags)
 {
+    // Keep track of the size before so we can see if it changed
+    const wxSize sizeBefore = GetSize();
+
     // note: we first need to set the size and _then_ call UpdateLabel
     wxStaticTextBase::DoSetSize(x, y, w, h, sizeFlags);
+
+    // Avoid flicker by not refreshing or updating the label if the size didn't
+    // change.
+    if ( sizeBefore == GetSize() )
+        return;
 
 #ifdef SS_ENDELLIPSIS
     // do we need to ellipsize the contents?
@@ -147,6 +150,10 @@ void wxStaticText::DoSetSize(int x, int y, int w, int h, int sizeFlags)
 
 void wxStaticText::SetLabel(const wxString& label)
 {
+    // If the label doesn't really change, avoid flicker by not doing anything.
+    if ( label == m_labelOrig )
+        return;
+
 #ifdef SS_ENDELLIPSIS
     long styleReal = ::GetWindowLong(GetHwnd(), GWL_STYLE);
     if ( HasFlag(wxST_ELLIPSIZE_END) )

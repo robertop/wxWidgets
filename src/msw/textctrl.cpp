@@ -23,7 +23,7 @@
     #pragma hdrstop
 #endif
 
-#if wxUSE_TEXTCTRL && !(defined(__SMARTPHONE__) && defined(__WXWINCE__))
+#if wxUSE_TEXTCTRL
 
 #ifndef WX_PRECOMP
     #include "wx/textctrl.h"
@@ -58,9 +58,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifndef __WXWINCE__
 #include <sys/types.h>
-#endif
 
 #if wxUSE_RICHEDIT
     #include <richedit.h>
@@ -68,7 +66,19 @@
     #include "wx/msw/ole/oleutils.h"
 #endif // wxUSE_RICHEDIT
 
+#if wxUSE_INKEDIT
+    #include <wx/dynlib.h>
+#endif
+
 #include "wx/msw/missing.h"
+
+#ifndef CFM_BACKCOLOR
+    #define CFM_BACKCOLOR 0x04000000
+#endif
+
+#ifndef CFE_AUTOBACKCOLOR
+    #define CFE_AUTOBACKCOLOR 0x04000000
+#endif
 
 #if wxUSE_DRAG_AND_DROP && wxUSE_RICHEDIT
 
@@ -116,8 +126,8 @@ public:
         Version_Max
     };
 
-    virtual bool OnInit();
-    virtual void OnExit();
+    virtual bool OnInit() wxOVERRIDE;
+    virtual void OnExit() wxOVERRIDE;
 
     // load the richedit DLL for the specified version of rich edit
     static bool Load(Version version);
@@ -158,17 +168,17 @@ public:
     wxTextCtrlOleCallback(wxTextCtrl *text) : m_textCtrl(text), m_menu(NULL) {}
     virtual ~wxTextCtrlOleCallback() { DeleteContextMenuObject(); }
 
-    STDMETHODIMP ContextSensitiveHelp(BOOL WXUNUSED(enterMode)) { return E_NOTIMPL; }
-    STDMETHODIMP DeleteObject(LPOLEOBJECT WXUNUSED(oleobj)) { return E_NOTIMPL; }
-    STDMETHODIMP GetClipboardData(CHARRANGE* WXUNUSED(chrg), DWORD WXUNUSED(reco), LPDATAOBJECT* WXUNUSED(dataobj)) { return E_NOTIMPL; }
-    STDMETHODIMP GetDragDropEffect(BOOL WXUNUSED(drag), DWORD WXUNUSED(grfKeyState), LPDWORD WXUNUSED(effect)) { return E_NOTIMPL; }
-    STDMETHODIMP GetInPlaceContext(LPOLEINPLACEFRAME* WXUNUSED(frame), LPOLEINPLACEUIWINDOW* WXUNUSED(doc), LPOLEINPLACEFRAMEINFO WXUNUSED(frameInfo)) { return E_NOTIMPL; }
-    STDMETHODIMP GetNewStorage(LPSTORAGE *WXUNUSED(stg)) { return E_NOTIMPL; }
-    STDMETHODIMP QueryAcceptData(LPDATAOBJECT WXUNUSED(dataobj), CLIPFORMAT* WXUNUSED(format), DWORD WXUNUSED(reco), BOOL WXUNUSED(really), HGLOBAL WXUNUSED(hMetaPict)) { return E_NOTIMPL; }
-    STDMETHODIMP QueryInsertObject(LPCLSID WXUNUSED(clsid), LPSTORAGE WXUNUSED(stg), LONG WXUNUSED(cp)) { return E_NOTIMPL; }
-    STDMETHODIMP ShowContainerUI(BOOL WXUNUSED(show)) { return E_NOTIMPL; }
+    STDMETHODIMP ContextSensitiveHelp(BOOL WXUNUSED(enterMode)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP DeleteObject(LPOLEOBJECT WXUNUSED(oleobj)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP GetClipboardData(CHARRANGE* WXUNUSED(chrg), DWORD WXUNUSED(reco), LPDATAOBJECT* WXUNUSED(dataobj)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP GetDragDropEffect(BOOL WXUNUSED(drag), DWORD WXUNUSED(grfKeyState), LPDWORD WXUNUSED(effect)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP GetInPlaceContext(LPOLEINPLACEFRAME* WXUNUSED(frame), LPOLEINPLACEUIWINDOW* WXUNUSED(doc), LPOLEINPLACEFRAMEINFO WXUNUSED(frameInfo)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP GetNewStorage(LPSTORAGE *WXUNUSED(stg)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP QueryAcceptData(LPDATAOBJECT WXUNUSED(dataobj), CLIPFORMAT* WXUNUSED(format), DWORD WXUNUSED(reco), BOOL WXUNUSED(really), HGLOBAL WXUNUSED(hMetaPict)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP QueryInsertObject(LPCLSID WXUNUSED(clsid), LPSTORAGE WXUNUSED(stg), LONG WXUNUSED(cp)) wxOVERRIDE { return E_NOTIMPL; }
+    STDMETHODIMP ShowContainerUI(BOOL WXUNUSED(show)) wxOVERRIDE { return E_NOTIMPL; }
 
-    STDMETHODIMP GetContextMenu(WORD WXUNUSED(seltype), LPOLEOBJECT WXUNUSED(oleobj), CHARRANGE* WXUNUSED(chrg), HMENU *menu)
+    STDMETHODIMP GetContextMenu(WORD WXUNUSED(seltype), LPOLEOBJECT WXUNUSED(oleobj), CHARRANGE* WXUNUSED(chrg), HMENU *menu) wxOVERRIDE
     {
         // 'menu' will be shown and destroyed by the caller. We need to keep
         // its wx counterpart, the wxMenu instance, around until it is
@@ -366,12 +376,8 @@ bool wxTextCtrl::Create(wxWindow *parent,
 // returns true if the platform should explicitly apply a theme border
 bool wxTextCtrl::CanApplyThemeBorder() const
 {
-#ifdef __WXWINCE__
-    return false;
-#else
     // Standard text control already handles theming
     return ((GetWindowStyle() & (wxTE_RICH|wxTE_RICH2)) != 0);
-#endif
 }
 
 bool wxTextCtrl::MSWCreateText(const wxString& value,
@@ -383,12 +389,6 @@ bool wxTextCtrl::MSWCreateText(const wxString& value,
 
     // do create the control - either an EDIT or RICHEDIT
     wxString windowClass = wxT("EDIT");
-
-#if defined(__POCKETPC__) || defined(__SMARTPHONE__)
-    // A control that capitalizes the first letter
-    if ( HasFlag(wxTE_CAPITALIZE) )
-        windowClass = wxT("CAPEDIT");
-#endif
 
 #if wxUSE_RICHEDIT
     if ( m_windowStyle & wxTE_AUTO_URL )
@@ -571,7 +571,16 @@ bool wxTextCtrl::MSWCreateText(const wxString& value,
         if ( m_verRichEdit >= 4 )
         {
             wxTextCtrlOleCallback *cb = new wxTextCtrlOleCallback(this);
-            contextMenuConnected = ::SendMessage(GetHwnd(), EM_SETOLECALLBACK, 0, (LPARAM)cb) != 0;
+            if ( ::SendMessage(GetHwnd(), EM_SETOLECALLBACK, 0, (LPARAM)cb) )
+            {
+                // If we succeeded in setting up the callback, we don't need to
+                // connect to wxEVT_CONTEXT_MENU to show the menu ourselves,
+                // but we do need to connect to wxEVT_RIGHT_UP to generate
+                // wxContextMenuEvent ourselves as we're not going to get it
+                // from the control which consumes it.
+                contextMenuConnected = true;
+                Bind(wxEVT_RIGHT_UP, &wxTextCtrl::OnRightUp, this);
+            }
         }
 #endif
         if ( !contextMenuConnected )
@@ -592,7 +601,6 @@ bool wxTextCtrl::MSWCreateText(const wxString& value,
         SetBackgroundColour(GetClassDefaultAttributes().colBg);
     }
 
-#ifndef __WXWINCE__
     // Without this, if we pass the size in the constructor and then don't change it,
     // the themed borders will be drawn incorrectly.
     SetWindowPos(GetHwnd(), NULL, 0, 0, 0, 0,
@@ -628,7 +636,6 @@ bool wxTextCtrl::MSWCreateText(const wxString& value,
 
         ::SendMessage(GetHwnd(), EM_SETMARGINS, wParam, lParam);
     }
-#endif // !__WXWINCE__
 
     return true;
 }
@@ -1272,8 +1279,6 @@ void wxTextCtrl::Clear()
     }
 }
 
-#ifdef __WIN32__
-
 bool wxTextCtrl::EmulateKeyPress(const wxKeyEvent& event)
 {
     SetFocus();
@@ -1288,8 +1293,6 @@ bool wxTextCtrl::EmulateKeyPress(const wxKeyEvent& event)
     // in the control - this should work in 99% of cases
     return GetValue().length() != lenOld;
 }
-
-#endif // __WIN32__
 
 // ----------------------------------------------------------------------------
 // Accessors
@@ -1793,8 +1796,6 @@ void wxTextCtrl::SetMaxLength(unsigned long len)
     }
 }
 
-#ifndef __WXWINCE__
-
 // ----------------------------------------------------------------------------
 // RTL support
 // ----------------------------------------------------------------------------
@@ -1825,8 +1826,6 @@ wxLayoutDirection wxTextCtrl::GetLayoutDirection() const
     return IsRich() ? wxTextCtrlBase::GetLayoutDirection()
                     : wxGetEditLayoutDirection(GetHwnd());
 }
-
-#endif // !__WXWINCE__
 
 // ----------------------------------------------------------------------------
 // Undo/redo
@@ -1978,13 +1977,13 @@ void wxTextCtrl::OnChar(wxKeyEvent& event)
     {
         case WXK_RETURN:
             {
-                wxCommandEvent event(wxEVT_TEXT_ENTER, m_windowId);
-                InitCommandEvent(event);
-                event.SetString(GetValue());
-                if ( HandleWindowEvent(event) )
-                if ( !HasFlag(wxTE_MULTILINE) )
-                    return;
-                //else: multiline controls need Enter for themselves
+                wxCommandEvent evt(wxEVT_TEXT_ENTER, m_windowId);
+                InitCommandEvent(evt);
+                evt.SetString(GetValue());
+                if ( HandleWindowEvent(evt) )
+                    if ( !HasFlag(wxTE_MULTILINE) )
+                        return;
+                    //else: multiline controls need Enter for themselves
             }
             break;
 
@@ -2055,26 +2054,73 @@ void wxTextCtrl::OnKeyDown(wxKeyEvent& event)
         }
     }
 
-    // Default window procedure of multiline edit controls posts WM_CLOSE to
-    // the parent window when it gets Escape key press for some reason, prevent
-    // it from doing this as this resulted in dialog boxes being closed on
-    // Escape even when they shouldn't be (we do handle Escape ourselves
-    // correctly in the situations when it should close them).
-    if ( event.GetKeyCode() == WXK_ESCAPE && IsMultiLine() )
-        return;
+    if ( IsMultiLine() )
+    {
+        // Default window procedure of multiline edit controls posts WM_CLOSE to
+        // the parent window when it gets Escape key press for some reason, prevent
+        // it from doing this as this resulted in dialog boxes being closed on
+        // Escape even when they shouldn't be (we do handle Escape ourselves
+        // correctly in the situations when it should close them).
+        if ( event.GetKeyCode() == WXK_ESCAPE )
+            return;
+
+        // We also handle Ctrl-A as the native EDIT control doesn't do it by
+        // default (but RICHEDIT one does, so there is no need to check for it
+        // in the switch above), however it's a de facto standard accelerator
+        // and people expect it to work.
+        if ( event.GetModifiers() == wxMOD_CONTROL && event.GetKeyCode() == 'A' )
+        {
+            SelectAll();
+            return;
+        }
+    }
 
     // no, we didn't process it
     event.Skip();
 }
 
-WXLRESULT wxTextCtrl::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
+bool
+wxTextCtrl::MSWHandleMessage(WXLRESULT *rc,
+                             WXUINT nMsg,
+                             WXWPARAM wParam,
+                             WXLPARAM lParam)
 {
-    WXLRESULT lRc = wxTextCtrlBase::MSWWindowProc(nMsg, wParam, lParam);
+    bool processed = wxTextCtrlBase::MSWHandleMessage(rc, nMsg, wParam, lParam);
+
+    // Handle the special case of "Enter" key: the user code needs to specify
+    // wxTE_PROCESS_ENTER style to get it in the first place, but if this flag
+    // is used, then even if the wxEVT_TEXT_ENTER handler skips the event, the
+    // normal action of this key is not performed because IsDialogMessage() is
+    // not called and, also, an annoying beep is generated by EDIT default
+    // WndProc.
+    //
+    // Fix these problems by explicitly performing the default function of this
+    // key (which would be done by MSWProcessMessage() if we didn't have
+    // wxTE_PROCESS_ENTER) and preventing the default WndProc from getting it.
+    if ( nMsg == WM_CHAR &&
+            !processed &&
+            HasFlag(wxTE_PROCESS_ENTER) &&
+            wParam == VK_RETURN &&
+            !wxIsAnyModifierDown() )
+    {
+        MSWClickButtonIfPossible(MSWGetDefaultButtonFor(this));
+
+        processed = true;
+    }
 
     switch ( nMsg )
     {
         case WM_GETDLGCODE:
             {
+                // Ensure that the result value is initialized even if the base
+                // class didn't handle WM_GETDLGCODE but just update the value
+                // returned by it if it did handle it.
+                if ( !processed )
+                {
+                    *rc = MSWDefWindowProc(nMsg, wParam, lParam);
+                    processed = true;
+                }
+
                 // we always want the chars and the arrows: the arrows for
                 // navigation and the chars because we want Ctrl-C to work even
                 // in a read only control
@@ -2098,7 +2144,7 @@ WXLRESULT wxTextCtrl::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lPara
                     if ( HasFlag(wxTE_PROCESS_TAB) )
                         lDlgCode |= DLGC_WANTTAB;
 
-                    lRc |= lDlgCode;
+                    *rc |= lDlgCode;
                 }
                 else // !editable
                 {
@@ -2107,11 +2153,17 @@ WXLRESULT wxTextCtrl::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lPara
                     //     including DLGC_WANTMESSAGE). This is strange (how
                     //     does it work in the native Win32 apps?) but for now
                     //     live with it.
-                    lRc = lDlgCode;
+                    *rc = lDlgCode;
                 }
-                if (IsMultiLine())
-                    // Clear the DLGC_HASSETSEL bit from the return value
-                    lRc &= ~DLGC_HASSETSEL;
+
+                if ( IsMultiLine() )
+                {
+                    // The presence of this style, coming from the default EDIT
+                    // WndProc, indicates that the control contents should be
+                    // selected when it gets focus, but we don't want this to
+                    // happen for the multiline controls, so clear it.
+                    *rc &= ~DLGC_HASSETSEL;
+                }
             }
             break;
 
@@ -2131,7 +2183,7 @@ WXLRESULT wxTextCtrl::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lPara
 #endif // wxUSE_MENUS
     }
 
-    return lRc;
+    return processed;
 }
 
 // ----------------------------------------------------------------------------
@@ -2277,7 +2329,7 @@ bool wxTextCtrl::AcceptsFocusFromKeyboard() const
 
 wxSize wxTextCtrl::DoGetBestSize() const
 {
-    return DoGetSizeFromTextSize( DEFAULT_ITEM_WIDTH );
+    return DoGetSizeFromTextSize( FromDIP(DEFAULT_ITEM_WIDTH) );
 }
 
 wxSize wxTextCtrl::DoGetSizeFromTextSize(int xlen, int ylen) const
@@ -2422,6 +2474,16 @@ void wxTextCtrl::OnSetFocus(wxFocusEvent& event)
 
 // the rest of the file only deals with the rich edit controls
 #if wxUSE_RICHEDIT
+
+void wxTextCtrl::OnRightUp(wxMouseEvent& eventMouse)
+{
+    wxContextMenuEvent eventMenu(wxEVT_CONTEXT_MENU,
+                                 GetId(),
+                                 ClientToScreen(eventMouse.GetPosition()));
+
+    if ( !ProcessWindowEvent(eventMenu) )
+        eventMouse.Skip();
+}
 
 void wxTextCtrl::OnContextMenu(wxContextMenuEvent& event)
 {
@@ -2954,7 +3016,7 @@ bool wxTextCtrl::GetStyle(long position, wxTextAttr& style)
     GetSelection(&startOld, &endOld);
 
     // but do we really have to change the selection?
-    bool changeSel = position != startOld || position != endOld;
+    const bool changeSel = position != startOld;
 
     if ( changeSel )
     {
@@ -3013,8 +3075,13 @@ bool wxTextCtrl::GetStyle(long position, wxTextAttr& style)
 #if wxUSE_RICHEDIT2
     if ( m_verRichEdit != 1 )
     {
-        // cf.dwMask |= CFM_BACKCOLOR;
-        style.SetBackgroundColour(wxColour(cf.crBackColor));
+        // Notice that, surprisingly, CFM_BACKCOLOR is still set in the mask
+        // even when CFE_AUTOBACKCOLOR is set in the effects, indicating that
+        // the background colour is not used.
+        if ( !(cf.dwEffects & CFE_AUTOBACKCOLOR) && (cf.dwMask & CFM_BACKCOLOR) )
+        {
+            style.SetBackgroundColour(wxColour(cf.crBackColor));
+        }
     }
 #endif // wxUSE_RICHEDIT2
 
@@ -3149,4 +3216,4 @@ bool wxRichEditModule::LoadInkEdit()
 
 #endif // wxUSE_RICHEDIT
 
-#endif // wxUSE_TEXTCTRL && !(__SMARTPHONE__ && __WXWINCE__)
+#endif // wxUSE_TEXTCTRL

@@ -31,10 +31,6 @@
     #include "wx/wxcrtvararg.h"
 #endif
 
-#ifndef __WXWINCE__
-    #include <locale.h>
-#endif
-
 #include "wx/vector.h"
 #include "wx/wfstream.h"
 #include "wx/filesys.h"
@@ -50,6 +46,7 @@
 #include "wx/scopedptr.h"
 
 #include <limits.h>
+#include <locale.h>
 
 namespace
 {
@@ -2174,6 +2171,28 @@ wxCoord wxXmlResourceHandlerImpl::GetDimension(const wxString& param,
 {
     return ParseValueInPixels(this, param, defaultv, windowToUse);
 }
+
+
+wxSize wxXmlResourceHandlerImpl::GetPairInts(const wxString& param)
+{
+    const wxString s = GetParamValue(param);
+    if ( s.empty() )
+        return wxDefaultSize;
+
+    wxSize sz;
+    if ( !XRCConvertFromAbsValue(s, sz) )
+    {
+        ReportParamError
+              (
+               param,
+               wxString::Format("cannot parse \"%s\" as pair of integers", s)
+              );
+        return wxDefaultSize;
+    }
+
+    return sz;
+}
+
 
 wxDirection
 wxXmlResourceHandlerImpl::GetDirection(const wxString& param, wxDirection dirDefault)

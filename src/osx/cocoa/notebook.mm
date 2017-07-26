@@ -29,7 +29,7 @@
 // controller
 //
 
-@interface wxTabViewController : NSObject wxOSX_10_6_AND_LATER(<NSTabViewDelegate>)
+@interface wxTabViewController : NSObject <NSTabViewDelegate>
 {
 }
 
@@ -112,8 +112,11 @@
 @implementation WXCTabViewImageItem : NSTabViewItem
 - (id)init
 {
-    m_image = nil;
-    return [super initWithIdentifier:nil];
+    if (self = [super initWithIdentifier:nil])
+    {
+        m_image = nil;
+    }
+    return self;
 }
 - (void)dealloc
 {
@@ -161,12 +164,6 @@
     m_image = image;
     if(!m_image)
         return;
-    [[NSPasteboard generalPasteboard]
-        declareTypes:[NSArray arrayWithObject:NSTIFFPboardType]
-        owner:nil];
-    [[NSPasteboard generalPasteboard]
-        setData:[m_image TIFFRepresentation]
-        forType:NSTIFFPboardType];
 }
 @end // implementation WXCTabViewImageItem : NSTabViewItem
 

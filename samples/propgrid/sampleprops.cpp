@@ -27,8 +27,8 @@
 // -----------------------------------------------------------------------
 
 
-#include <wx/propgrid/propgrid.h>
-#include <wx/propgrid/advprops.h>
+#include "wx/propgrid/propgrid.h"
+#include "wx/propgrid/advprops.h"
 
 #ifndef WX_PROPGRID_SAMPLEPROPS_H
     #include "sampleprops.h"
@@ -497,7 +497,7 @@ wxArrayDoubleProperty::wxArrayDoubleProperty (const wxString& label,
 
     //
     // Need to figure out delimiter needed for this locale
-    // (ie. can't use comma when comma acts as decimal point in float).
+    // (i.e. can't use comma when comma acts as decimal point in float).
     wxChar use_delimiter = wxT(',');
 
     if (wxString::Format(wxT("%.2f"),12.34).Find(use_delimiter) >= 0)

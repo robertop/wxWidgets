@@ -106,11 +106,9 @@ WXDWORD wxStatusBar::MSWGetStyle(long style, WXDWORD *exstyle) const
     }
     else
     {
-#ifndef __WXWINCE__
         // may be some versions of comctl32.dll do need it - anyhow, it won't
         // do any harm
        msStyle |= SBARS_SIZEGRIP;
-#endif
     }
 
     return msStyle;
@@ -499,9 +497,7 @@ wxSize wxStatusBar::DoGetBestSize() const
     int height = GetCharHeight();
     height += 4*borders.vert;
 
-    wxSize best(width, height);
-    CacheBestSize(best);
-    return best;
+    return wxSize(width, height);
 }
 
 void wxStatusBar::DoMoveWindow(int x, int y, int width, int height)
@@ -518,9 +514,7 @@ void wxStatusBar::DoMoveWindow(int x, int y, int width, int height)
         // if other windows are size deferred
         ::SetWindowPos(GetHwnd(), NULL, x, y, width, height,
                        SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE
-#ifndef __WXWINCE__
                        | SWP_NOCOPYBITS | SWP_NOSENDCHANGING
-#endif
                        );
     }
 
@@ -574,7 +568,6 @@ void wxStatusBar::SetStatusStyles(int n, const int styles[])
 WXLRESULT
 wxStatusBar::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
 {
-#ifndef __WXWINCE__
     if ( nMsg == WM_WINDOWPOSCHANGING )
     {
         WINDOWPOS *lpPos = (WINDOWPOS *)lParam;
@@ -613,7 +606,6 @@ wxStatusBar::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
             }
         }
     }
-#endif
 
     if ( nMsg == WM_SIZE )
     {

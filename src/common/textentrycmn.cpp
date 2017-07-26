@@ -27,6 +27,7 @@
 #ifndef WX_PRECOMP
     #include "wx/window.h"
     #include "wx/dataobj.h"
+    #include "wx/textctrl.h"            // Only needed for wxTE_PASSWORD.
 #endif //WX_PRECOMP
 
 #include "wx/textentry.h"
@@ -311,11 +312,76 @@ bool wxTextEntryBase::CanPaste() const
 }
 
 // ----------------------------------------------------------------------------
+// input restrictions
+// ----------------------------------------------------------------------------
+
+#ifndef wxHAS_NATIVE_TEXT_FORCEUPPER
+
+namespace
+{
+
+// Poor man's lambda: helper for binding ConvertToUpperCase() to the event
+struct ForceUpperFunctor
+{
+    explicit ForceUpperFunctor(wxTextEntryBase* entry)
+        : m_entry(entry)
+    {
+    }
+
+    void operator()(wxCommandEvent& event)
+    {
+        event.Skip();
+        m_entry->ConvertToUpperCase();
+    }
+
+    wxTextEntryBase* const m_entry;
+};
+
+} // anonymous namespace
+
+#endif // !wxHAS_NATIVE_TEXT_FORCEUPPER
+
+void wxTextEntryBase::ConvertToUpperCase()
+{
+    const wxString& valueOld = GetValue();
+    const wxString& valueNew = valueOld.Upper();
+
+    if ( valueNew != valueOld )
+    {
+        long from, to;
+        GetSelection(&from, &to);
+        ChangeValue(valueNew);
+        SetSelection(from, to);
+    }
+}
+
+void wxTextEntryBase::ForceUpper()
+{
+    // Do nothing if this method is never called because a native override is
+    // provided: this is just a tiny size-saving optimization, nothing else.
+#ifndef wxHAS_NATIVE_TEXT_FORCEUPPER
+    wxWindow* const win = GetEditableWindow();
+    wxCHECK_RET( win, wxS("can't be called before creating the window") );
+
+    // Convert the current control contents to upper case
+    ConvertToUpperCase();
+
+    // And ensure that any text entered in the future is converted too
+    win->Bind(wxEVT_TEXT, ForceUpperFunctor(this));
+#endif // !wxHAS_NATIVE_TEXT_FORCEUPPER
+}
+
+// ----------------------------------------------------------------------------
 // hints support
 // ----------------------------------------------------------------------------
 
 bool wxTextEntryBase::SetHint(const wxString& hint)
 {
+    // Hint contents would be shown hidden in a password text entry anyhow, so
+    // we just can't support hints in this case.
+    if ( GetEditableWindow()->HasFlag(wxTE_PASSWORD) )
+        return false;
+
     if ( !hint.empty() )
     {
         if ( !m_hintData )

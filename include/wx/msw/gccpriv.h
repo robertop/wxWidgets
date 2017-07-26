@@ -33,6 +33,14 @@
         #endif
     #endif
 
+    /*
+        MinGW 5.3.0 (and presumably later) predefines _WIN32_WINNT and WINVER
+        in sdkddkver.h included from _mingw.h to very low (Windows 2000!)
+        values. We really want to predefine them ourselves instead, so do it
+        before including _mingw.h.
+     */
+    #include "wx/msw/winver.h"
+
     #include <_mingw.h>
 
     /*
@@ -130,6 +138,56 @@
     #else
         #define  _puttchar   puttchar
     #endif
+#endif
+
+/*
+    Traditional MinGW (but not MinGW-w64 nor TDM-GCC) omits many POSIX
+    functions from their headers when compiled with __STRICT_ANSI__ defined.
+    Unfortunately this means that they are not available when using -std=c++98
+    (not very common) or -std=c++11 (much more so), but we still need them even
+    in this case. As the intention behind using -std=c++11 is probably to get
+    the new C++11 features and not disable the use of POSIX functions, we just
+    manually declare the functions we need in this case if necessary.
+ */
+#ifdef __MINGW32_TOOLCHAIN__
+    /*
+        The macro below is used in wx/wxcrtbase.h included from C regex library
+        code, so make sure it compiles in non-C++ code too.
+     */
+    #ifdef __cplusplus
+        #define wxEXTERNC extern "C"
+    #else
+        #define wxEXTERNC
+    #endif
+
+    /*
+        This macro is somewhat unusual as it takes the list of parameters
+        inside parentheses and includes semicolon inside it as putting the
+        semicolon outside wouldn't do the right thing when this macro is empty.
+     */
+    #define wxDECL_FOR_MINGW32_ALWAYS(rettype, func, params) \
+        wxEXTERNC _CRTIMP rettype __cdecl __MINGW_NOTHROW func params ;
+
+    #ifdef __STRICT_ANSI__
+        #define wxNEEDS_STRICT_ANSI_WORKAROUNDS
+
+        #define wxDECL_FOR_STRICT_MINGW32(rettype, func, params) \
+            wxDECL_FOR_MINGW32_ALWAYS(rettype, func, params)
+
+        /*
+            There is a bug resulting in a compilation error in MinGW standard
+            math.h header, see https://sourceforge.net/p/mingw/bugs/2250/, work
+            around it here because math.h is also included from several other
+            standard headers (e.g. <algorithm>) and we don't want to duplicate this
+            hack everywhere this happens.
+         */
+        wxDECL_FOR_STRICT_MINGW32(double, _hypot, (double, double))
+    #else
+        #define wxDECL_FOR_STRICT_MINGW32(rettype, func, params)
+    #endif
+#else
+    #define wxDECL_FOR_MINGW32_ALWAYS(rettype, func, params)
+    #define wxDECL_FOR_STRICT_MINGW32(rettype, func, params)
 #endif
 
 #endif

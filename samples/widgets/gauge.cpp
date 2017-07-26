@@ -75,7 +75,7 @@ public:
     GaugeWidgetsPage(WidgetsBookCtrl *book, wxImageList *imaglist);
     virtual ~GaugeWidgetsPage();
 
-    virtual wxControl *GetWidget() const wxOVERRIDE { return m_gauge; }
+    virtual wxWindow *GetWidget() const wxOVERRIDE { return m_gauge; }
     virtual void RecreateWidget() wxOVERRIDE { CreateGauge(); }
 
     // lazy creation of the content
@@ -293,10 +293,8 @@ void GaugeWidgetsPage::CreateGauge()
     if ( m_chkSmooth->GetValue() )
         flags |= wxGA_SMOOTH;
 
-#if wxUSE_TASKBARBUTTON
     if ( m_chkProgress->GetValue() )
         flags |= wxGA_PROGRESS;
-#endif
 
     int val = 0;
     if ( m_gauge )

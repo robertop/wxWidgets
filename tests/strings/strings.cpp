@@ -63,6 +63,7 @@ private:
         CPPUNIT_TEST( IndexedAccess );
         CPPUNIT_TEST( BeforeAndAfter );
         CPPUNIT_TEST( ScopedBuffers );
+        CPPUNIT_TEST( SupplementaryUniChar );
     CPPUNIT_TEST_SUITE_END();
 
     void String();
@@ -98,6 +99,7 @@ private:
     void IndexedAccess();
     void BeforeAndAfter();
     void ScopedBuffers();
+    void SupplementaryUniChar();
 
     wxDECLARE_NO_COPY_CLASS(StringTestCase);
 };
@@ -602,14 +604,16 @@ enum
     Number_Long     = 16    // only for long tests
 };
 
+#ifdef wxLongLong_t
+typedef wxLongLong_t TestValue_t;
+#else
+typedef long TestValue_t;
+#endif
+
 static const struct ToLongData
 {
     const wxChar *str;
-#ifdef wxLongLong_t
-    wxLongLong_t value;
-#else
-    long value;
-#endif // wxLongLong_t
+    TestValue_t value;
     int flags;
     int base;
 
@@ -631,7 +635,7 @@ static const struct ToLongData
 
     { wxT("-1"), -1, Number_Signed | Number_Long },
     // this is surprising but consistent with strtoul() behaviour
-    { wxT("-1"), ULONG_MAX, Number_Unsigned | Number_Long },
+    { wxT("-1"), (TestValue_t)ULONG_MAX, Number_Unsigned | Number_Long },
 
     // this must overflow, even with 64 bit long
     { wxT("922337203685477580711"), 0, Number_Invalid },
@@ -639,8 +643,9 @@ static const struct ToLongData
 #ifdef wxLongLong_t
     { wxT("2147483648"), wxLL(2147483648), Number_LongLong },
     { wxT("-2147483648"), wxLL(-2147483648), Number_LongLong | Number_Signed },
-    { wxT("9223372036854775808"), wxULL(9223372036854775808), Number_LongLong |
-                                                             Number_Unsigned },
+    { wxT("9223372036854775808"),
+      TestValue_t(wxULL(9223372036854775808)),
+      Number_LongLong | Number_Unsigned },
 #endif // wxLongLong_t
 
     // Base tests.
@@ -842,10 +847,9 @@ void StringTestCase::FromDouble()
     } testData[] =
     {
         { 1.23,             -1, "1.23" },
-        // NB: there are no standards about the minimum exponent width
-        //     and newer MSVC versions use 3 digits as minimum exponent
-        //     width while GNU libc uses 2 digits as minimum width...
-#ifdef wxUSING_VC_CRT_IO
+        // All MSVC versions until MSVC 14 used 3 digits for the exponent
+        // unnecessarily, account for this non-standard behaviour.
+#if defined(wxUSING_VC_CRT_IO) && !wxCHECK_VISUALC_VERSION(14)
         { -3e-10,           -1, "-3e-010" },
 #else
         { -3e-10,           -1, "-3e-10" },
@@ -965,6 +969,12 @@ void StringTestCase::DoCStrDataTernaryOperator(bool cond)
 
     wxString s("foo");
 
+    // Using literal strings in ternary operator below results in these
+    // warnings, but they're unavoidable if we want such code to continue to
+    // compile at all, as it used to in pre-3.0 versions, so just suppress them.
+    wxGCC_WARNING_SUPPRESS(write-strings)
+    wxCLANG_WARNING_SUPPRESS(c++11-compat-deprecated-writable-strings)
+
     const wchar_t *wcStr = L"foo";
     CPPUNIT_ASSERT( CheckStr(s, (cond ? s.c_str() : wcStr)) );
     CPPUNIT_ASSERT( CheckStr(s, (cond ? s.c_str() : L"foo")) );
@@ -976,6 +986,9 @@ void StringTestCase::DoCStrDataTernaryOperator(bool cond)
     CPPUNIT_ASSERT( CheckStr(s, (cond ? s.c_str() : "foo")) );
     CPPUNIT_ASSERT( CheckStr(s, (cond ? mbStr : s.c_str())) );
     CPPUNIT_ASSERT( CheckStr(s, (cond ? "foo" : s.c_str())) );
+
+    wxGCC_WARNING_RESTORE(write-strings)
+    wxCLANG_WARNING_RESTORE(c++11-compat-deprecated-writable-strings)
 
     wxString empty("");
     CPPUNIT_ASSERT( CheckStr(empty, (cond ? empty.c_str() : wxEmptyString)) );
@@ -1017,7 +1030,9 @@ void StringTestCase::CStrDataImplicitConversion()
     // implicit conversion of wxString is not available in STL build
 #if !wxUSE_STL
     CPPUNIT_ASSERT( CheckStrConstWChar(s, s) );
+#if wxUSE_UNSAFE_WXSTRING_CONV
     CPPUNIT_ASSERT( CheckStrConstChar(s, s) );
+#endif
 #endif
 }
 
@@ -1128,4 +1143,172 @@ void StringTestCase::ScopedBuffers()
     wxCharBuffer buf5(5);
     buf5.extend(len);
     CPPUNIT_ASSERT_EQUAL('\0', buf5.data()[len]);
+}
+
+void StringTestCase::SupplementaryUniChar()
+{
+#if wxUSE_UNICODE
+    // Test wxString(wxUniChar ch, size_t nRepeat = 1),
+    // which is implemented upon assign(size_t n, wxUniChar ch).
+    {
+        wxString s(wxUniChar(0x12345));
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(2, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD808, s[0].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDF45, s[1].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(1, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x12345, s[0].GetValue());
+#endif
+    }
+
+    // Test operator=(wxUniChar ch).
+    {
+        wxString s;
+        s = wxUniChar(0x23456);
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(2, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD84D, s[0].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDC56, s[1].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(1, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x23456, s[0].GetValue());
+#endif
+    }
+
+    // Test operator+=(wxUniChar ch).
+    {
+        wxString s = "A";
+        s += wxUniChar(0x34567);
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(3, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD891, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDD67, s[2].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(2, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x34567, s[1].GetValue());
+#endif
+    }
+
+    // Test operator<<(wxUniChar ch),
+    // which is implemented upon append(size_t n, wxUniChar ch).
+    {
+        wxString s = "A";
+        s << wxUniChar(0x45678);
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(3, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD8D5, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDE78, s[2].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(2, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x45678, s[1].GetValue());
+#endif
+    }
+
+    // Test insert(size_t nPos, size_t n, wxUniChar ch).
+    {
+        wxString s = L"\x3042\x208\x3059";
+        s.insert(1, 2, wxUniChar(0x12345));
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(7, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD808, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDF45, s[2].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xD808, s[3].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDF45, s[4].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(5, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x12345, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0x12345, s[2].GetValue());
+#endif
+    }
+
+    // Test insert(iterator it, wxUniChar ch).
+    {
+        wxString s = L"\x3042\x208\x3059";
+        s.insert(s.begin() + 1, wxUniChar(0x23456));
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(5, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD84D, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDC56, s[2].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(4, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x23456, s[1].GetValue());
+#endif
+    }
+
+    // Test insert(iterator it, size_type n, wxUniChar ch).
+    {
+        wxString s = L"\x3042\x208\x3059";
+        s.insert(s.begin() + 1, 2, wxUniChar(0x34567));
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(7, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD891, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDD67, s[2].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(5, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x34567, s[1].GetValue());
+#endif
+    }
+
+    // Test replace(size_t nStart, size_t nLen, size_t nCount, wxUniChar ch).
+    {
+        wxString s = L"\x3042\x208\x3059";
+        s.replace(1, 2, 2, wxUniChar(0x45678));
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(5, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD8D5, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDE78, s[2].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xD8D5, s[3].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDE78, s[4].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(3, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x45678, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0x45678, s[2].GetValue());
+#endif
+    }
+
+    // Test replace(iterator first, iterator last, size_type n, wxUniChar ch).
+    {
+        wxString s = L"\x3042\x208\x3059";
+        s.replace(s.begin() + 1, s.end(), 2, wxUniChar(0x34567));
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(5, s.length());
+        CPPUNIT_ASSERT_EQUAL(0xD891, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDD67, s[2].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xD891, s[3].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0xDD67, s[4].GetValue());
+#else
+        CPPUNIT_ASSERT_EQUAL(3, s.length());
+        CPPUNIT_ASSERT_EQUAL(0x34567, s[1].GetValue());
+        CPPUNIT_ASSERT_EQUAL(0x34567, s[2].GetValue());
+#endif
+    }
+
+    // Test find(wxUniChar ch, size_t nStart = 0)
+    // and rfind(wxUniChar ch, size_t nStart = npos).
+    {
+        wxString s = L"\x308\x2063";
+        s << wxUniChar(0x12345);
+        s << "x";
+        s += wxUniChar(0x12345);
+        s += "y";
+#if wxUSE_UNICODE_UTF16
+        CPPUNIT_ASSERT_EQUAL(8, s.length());
+        CPPUNIT_ASSERT_EQUAL(2, s.find(wxUniChar(0x12345)));
+        CPPUNIT_ASSERT_EQUAL(5, s.find(wxUniChar(0x12345), 3));
+        CPPUNIT_ASSERT_EQUAL(5, s.rfind(wxUniChar(0x12345)));
+        CPPUNIT_ASSERT_EQUAL(2, s.rfind(wxUniChar(0x12345), 4));
+#else
+        CPPUNIT_ASSERT_EQUAL(6, s.length());
+        CPPUNIT_ASSERT_EQUAL(2, s.find(wxUniChar(0x12345)));
+        CPPUNIT_ASSERT_EQUAL(4, s.find(wxUniChar(0x12345), 3));
+        CPPUNIT_ASSERT_EQUAL(4, s.rfind(wxUniChar(0x12345)));
+        CPPUNIT_ASSERT_EQUAL(2, s.rfind(wxUniChar(0x12345), 3));
+#endif
+    }
+
+    /* Not tested here:
+         find_first_of, find_last_of, find_first_not_of, find_last_not_of
+    */
+#endif
 }

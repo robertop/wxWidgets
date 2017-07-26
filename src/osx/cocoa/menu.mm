@@ -37,8 +37,10 @@
 
 - (id) initWithTitle:(NSString*) title
 {
-    self = [super initWithTitle:title];
-    impl = NULL;
+    if ( self = [super initWithTitle:title] )
+    {
+        impl = NULL;
+    }
     return self;
 }
 
@@ -58,7 +60,7 @@
 // and under 10.4, we are not getting a 'close' event however...
 #define wxOSX_USE_NEEDSUPDATE_HOOK 1
 
-@interface wxNSMenuController : NSObject wxOSX_10_6_AND_LATER(<NSMenuDelegate>)
+@interface wxNSMenuController : NSObject <NSMenuDelegate>
 {
 }
 
@@ -237,18 +239,7 @@ public :
     {
         win->ScreenToClient( &x , &y ) ;
         NSView *view = win->GetPeer()->GetWXWidget();
-        NSRect frame = [view frame];
-        frame.origin.x = x;
-        frame.origin.y = y;
-        frame.size.width = 1;
-        frame.size.height = 1;
-        NSPopUpButtonCell *popUpButtonCell = [[NSPopUpButtonCell alloc] initTextCell:@"" pullsDown:NO];
-        [popUpButtonCell setAutoenablesItems:NO];
-        [popUpButtonCell setAltersStateOfSelectedItem:NO];
-        [popUpButtonCell setMenu:m_osxMenu];
-        [popUpButtonCell selectItem:nil];
-        [popUpButtonCell performClickWithFrame:frame inView:view];
-        [popUpButtonCell release];
+        [m_osxMenu popUpMenuPositioningItem:nil atLocation:NSMakePoint(x, y) inView:view];
     }
     
     virtual void GetMenuBarDimensions(int &x, int &y, int &width, int &height) const wxOVERRIDE

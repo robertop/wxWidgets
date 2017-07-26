@@ -47,15 +47,14 @@
 #define wxLIST_STATE_CUT            0x0008      // MSW only
 
 /// Hit test flags, used in HitTest
-#define wxLIST_HITTEST_ABOVE            0x0001  // Above the client area.
-#define wxLIST_HITTEST_BELOW            0x0002  // Below the client area.
-#define wxLIST_HITTEST_NOWHERE          0x0004  // In the client area but below the last item.
-#define wxLIST_HITTEST_ONITEMICON       0x0020  // On the bitmap associated with an item.
-#define wxLIST_HITTEST_ONITEMLABEL      0x0080  // On the label (string) associated with an item.
-#define wxLIST_HITTEST_ONITEMRIGHT      0x0100  // In the area to the right of an item.
-#define wxLIST_HITTEST_ONITEMSTATEICON  0x0200  // On the state icon for a tree view item that is in a user-defined state.
-#define wxLIST_HITTEST_TOLEFT           0x0400  // To the left of the client area.
-#define wxLIST_HITTEST_TORIGHT          0x0800  // To the right of the client area.
+#define wxLIST_HITTEST_ABOVE            0x0001  // Above the control's client area.
+#define wxLIST_HITTEST_BELOW            0x0002  // Below the control's client area.
+#define wxLIST_HITTEST_NOWHERE          0x0004  // Inside the control's client area but not over an item.
+#define wxLIST_HITTEST_ONITEMICON       0x0020  // Over an item's icon.
+#define wxLIST_HITTEST_ONITEMLABEL      0x0080  // Over an item's text.
+#define wxLIST_HITTEST_ONITEMSTATEICON  0x0200  // Over the checkbox of an item.
+#define wxLIST_HITTEST_TOLEFT           0x0400  // To the left of the control's client area.
+#define wxLIST_HITTEST_TORIGHT          0x0800  // To the right of the control's client area.
 
 #define wxLIST_HITTEST_ONITEM (wxLIST_HITTEST_ONITEMICON | wxLIST_HITTEST_ONITEMLABEL | wxLIST_HITTEST_ONITEMSTATEICON)
 
@@ -256,8 +255,18 @@ enum
     @event{EVT_LIST_CACHE_HINT(id, func)}
            Prepare cache for a virtual list control.
            Processes a @c wxEVT_LIST_CACHE_HINT event type.
+    @event{EVT_LIST_ITEM_CHECKED(id, func)}
+           The item has been checked.
+           Processes a @c wxEVT_LIST_ITEM_CHECKED event type (new since wxWidgets 3.1.0).
+    @event{EVT_LIST_ITEM_UNCHECKED(id, func)}
+           The item has been unchecked.
+           Processes a @c wxEVT_LIST_ITEM_UNCHECKED event type (new since wxWidgets 3.1.0).
     @endEventTable
 
+    @note Under wxMSW this control uses wxSystemThemedControl for an explorer
+    style appearance by default since wxWidgets 3.1.0. If this is not desired,
+    you can call wxSystemThemedControl::EnableSystemTheme with @c false
+    argument to disable this.
 
     @library{wxcore}
     @category{ctrl}
@@ -570,7 +579,7 @@ public:
         Returns @NULL if no label is being edited.
 
         @note It is currently only implemented for wxMSW and the generic version,
-              not for the native Mac OS X version.
+              not for the native OS X version.
     */
     wxTextCtrl* GetEditControl() const;
 
@@ -786,21 +795,27 @@ public:
     void SetAlternateRowColour(const wxColour& colour);
 
     /**
+        Get the alternative row background colour.
+
+        @since 3.1.0
+        @see SetAlternateRowColour()
+     */
+    wxColour GetAlternateRowColour() const;
+
+    /**
         Determines which item (if any) is at the specified point, giving details
         in @a flags. Returns index of the item or @c wxNOT_FOUND if no item is at
         the specified point.
 
         @a flags will be a combination of the following flags:
-        - wxLIST_HITTEST_ABOVE: Above the client area.
-        - wxLIST_HITTEST_BELOW: Below the client area.
-        - wxLIST_HITTEST_NOWHERE: In the client area but below the last item.
-        - wxLIST_HITTEST_ONITEMICON: On the bitmap associated with an item.
-        - wxLIST_HITTEST_ONITEMLABEL: On the label (string) associated with an item.
-        - wxLIST_HITTEST_ONITEMRIGHT: In the area to the right of an item.
-        - wxLIST_HITTEST_ONITEMSTATEICON: On the state icon for a tree view item
-          that is in a user-defined state.
-        - wxLIST_HITTEST_TOLEFT: To the right of the client area.
-        - wxLIST_HITTEST_TORIGHT: To the left of the client area.
+        - wxLIST_HITTEST_ABOVE: Above the control's client area.
+        - wxLIST_HITTEST_BELOW: Below the control's client area.
+        - wxLIST_HITTEST_TOLEFT: To the left of the control's client area.
+        - wxLIST_HITTEST_TORIGHT: To the right of the control's client area.
+        - wxLIST_HITTEST_NOWHERE: Inside the control's client area but not over an item.
+        - wxLIST_HITTEST_ONITEMICON: Over an item's icon.
+        - wxLIST_HITTEST_ONITEMLABEL: Over an item's text.
+        - wxLIST_HITTEST_ONITEMSTATEICON: Over the checkbox of an item.
         - wxLIST_HITTEST_ONITEM: Combination of @c wxLIST_HITTEST_ONITEMICON,
           @c wxLIST_HITTEST_ONITEMLABEL, @c wxLIST_HITTEST_ONITEMSTATEICON.
 
@@ -1035,6 +1050,25 @@ public:
     bool SetColumnsOrder(const wxArrayInt& orders);
 
     /**
+        Change the font and the colours used for the list control header.
+
+        This method can be used to change the appearance of the header shown by
+        the control in report mode (unless @c wxLC_NO_HEADER style is used).
+
+        Currently it is implemented only for wxMSW and does nothing in the
+        other ports.
+
+        @param attr The object containing the font and text and background
+            colours to use. It may be default, i.e. not specify any custom font
+            nor colours, to reset any previously set custom attribute.
+        @return @true if the attributes have been updated or @false if this is
+            not supported by the current platform.
+
+        @since 3.1.1
+    */
+    bool SetHeaderAttr(const wxItemAttr& attr);
+
+    /**
         Sets the image list associated with the control.
 
         @a which is one of @c wxIMAGE_LIST_NORMAL, @c wxIMAGE_LIST_SMALL,
@@ -1144,6 +1178,10 @@ public:
 
         Consider using wxListView if possible to avoid dealing with this
         error-prone and confusing method.
+
+        Also notice that contrary to the usual rule that only user actions
+        generate events, this method does generate wxEVT_LIST_ITEM_SELECTED
+        event when it is used to select an item.
     */
     bool SetItemState(long item, long state, long stateMask);
 
@@ -1205,6 +1243,49 @@ public:
     */
     bool SortItems(wxListCtrlCompare fnSortCallBack, wxIntPtr data);
 
+    /**
+        Returns true if checkboxes are enabled for list items.
+
+        @see EnableCheckBoxes()
+
+        @since 3.1.0
+    */
+    bool HasCheckBoxes() const;
+
+    /**
+        Enable or disable checkboxes for list items.
+
+        @param enable If @true, enable checkboxes, otherwise disable checkboxes.
+        @return @true if checkboxes are supported, @false otherwise.
+
+        @since 3.1.0
+    */
+    bool EnableCheckBoxes(bool enable = true);
+
+    /**
+        Return true if the checkbox for the given wxListItem is checked.
+
+        Always returns false if checkboxes support hadn't been enabled.
+
+        @param item Item (zero-based) index.
+
+        @since 3.1.0
+    */
+    bool IsItemChecked(long item) const;
+
+    /**
+        Check or uncheck a wxListItem in a control using checkboxes.
+
+        This method only works if checkboxes support had been successfully
+        enabled using EnableCheckBoxes().
+
+        @param item Item (zero-based) index.
+        @param check If @true, check the item, otherwise uncheck.
+
+        @since 3.1.0
+    */
+    void CheckItem(long item, bool check);
+
 protected:
 
     /**
@@ -1213,14 +1294,14 @@ protected:
         @c item or @NULL to use the default appearance parameters.
 
         wxListCtrl will not delete the pointer or keep a reference of it.
-        You can return the same wxListItemAttr pointer for every OnGetItemAttr() call.
+        You can return the same wxItemAttr pointer for every OnGetItemAttr() call.
 
         The base class version always returns @NULL.
 
         @see OnGetItemImage(), OnGetItemColumnImage(), OnGetItemText(),
              OnGetItemColumnAttr()
     */
-    virtual wxListItemAttr* OnGetItemAttr(long item) const;
+    virtual wxItemAttr* OnGetItemAttr(long item) const;
 
      /**
         This function may be overridden in the derived class for a control with
@@ -1237,7 +1318,7 @@ protected:
         @see OnGetItemAttr(), OnGetItemText(),
              OnGetItemImage(), OnGetItemColumnImage(),
     */
-    virtual wxListItemAttr* OnGetItemColumnAttr(long item, long column) const;
+    virtual wxItemAttr* OnGetItemColumnAttr(long item, long column) const;
 
     /**
         Override this function in the derived class for a control with
@@ -1327,6 +1408,10 @@ protected:
         A column has been resized by the user.
     @event{EVT_LIST_CACHE_HINT(id, func)}
         Prepare cache for a virtual list control
+    @event{EVT_LIST_ITEM_CHECKED(id, func)}
+        The item has been checked (new since wxWidgets 3.1.0).
+    @event{EVT_LIST_ITEM_UNCHECKED(id, func)}
+        The item has been unchecked (new since wxWidgets 3.1.0).
     @endEventTable
 
 
@@ -1417,6 +1502,44 @@ public:
         admittedly rare case when the user wants to rename it to an empty string).
     */
     bool IsEditCancelled() const;
+
+    
+    /**
+       @see GetKeyCode()
+    */
+    void SetKeyCode(int code);
+
+    /**
+       @see GetIndex()
+    */
+    void SetIndex(long index);
+
+    /**
+       @see GetColumn()
+    */
+    void SetColumn(int col);
+
+    /**
+       @see GetPoint()
+    */
+    void SetPoint(const wxPoint& point);
+
+    /**
+       @see GetItem()
+    */
+    void SetItem(const wxListItem& item);
+
+
+    /**
+       @see GetCacheFrom()
+    */
+    void SetCacheFrom(long cacheFrom);
+
+    /**
+       @see GetCacheTo()
+    */
+    void SetCacheTo(long cacheTo);
+
 };
 
 
@@ -1440,80 +1563,8 @@ wxEventType wxEVT_LIST_COL_BEGIN_DRAG;
 wxEventType wxEVT_LIST_COL_DRAGGING;
 wxEventType wxEVT_LIST_COL_END_DRAG;
 wxEventType wxEVT_LIST_ITEM_FOCUSED;
-
-
-/**
-    @class wxListItemAttr
-
-    Represents the attributes (color, font, ...) of a wxListCtrl's wxListItem.
-
-    @library{wxcore}
-    @category{data}
-
-    @see @ref overview_listctrl, wxListCtrl, wxListItem
-*/
-class wxListItemAttr
-{
-public:
-    /**
-        Default Constructor.
-    */
-    wxListItemAttr();
-
-    /**
-        Construct a wxListItemAttr with the specified foreground and
-        background colors and font.
-    */
-    wxListItemAttr(const wxColour& colText,
-                   const wxColour& colBack,
-                   const wxFont& font);
-
-    /**
-        Returns the currently set background color.
-    */
-    const wxColour& GetBackgroundColour() const;
-
-    /**
-        Returns the currently set font.
-    */
-    const wxFont& GetFont() const;
-
-    /**
-        Returns the currently set text color.
-    */
-    const wxColour& GetTextColour() const;
-
-    /**
-        Returns @true if the currently set background color is valid.
-    */
-    bool HasBackgroundColour() const;
-
-    /**
-        Returns @true if the currently set font is valid.
-    */
-    bool HasFont() const;
-
-    /**
-        Returns @true if the currently set text color is valid.
-    */
-    bool HasTextColour() const;
-
-    /**
-        Sets a new background color.
-    */
-    void SetBackgroundColour(const wxColour& colour);
-
-    /**
-        Sets a new font.
-    */
-    void SetFont(const wxFont& font);
-
-    /**
-        Sets a new text color.
-    */
-    void SetTextColour(const wxColour& colour);
-};
-
+wxEventType wxEVT_LIST_ITEM_CHECKED;
+wxEventType wxEVT_LIST_ITEM_UNCHECKED;
 
 
 /**
@@ -1565,10 +1616,10 @@ public:
 
         @see Create(), wxValidator
     */
-    wxListView(wxWindow* parent, wxWindowID id,
+    wxListView(wxWindow* parent, wxWindowID winid = wxID_ANY,
                const wxPoint& pos = wxDefaultPosition,
                const wxSize& size = wxDefaultSize,
-               long style = wxLC_ICON,
+               long style = wxLC_REPORT,
                const wxValidator& validator = wxDefaultValidator,
                const wxString& name = wxListCtrlNameStr);
 
@@ -1627,12 +1678,15 @@ public:
     /**
         Selects or unselects the given item.
 
+        Notice that this method inherits the unusual behaviour of
+        wxListCtrl::SetItemState() which sends a wxEVT_LIST_ITEM_SELECTED event
+        when it is used to select an item, contrary to the usual rule that only
+        the user actions result in selection.
+
         @param n
             the item to select or unselect
         @param on
             if @true (default), selects the item, otherwise unselects it
-
-        @see wxListCtrl::SetItemState
     */
     void Select(long n, bool on = true);
 

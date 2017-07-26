@@ -35,19 +35,18 @@ public:
                 const wxString& name = wxStaticBoxNameStr);
 
     /// Implementation only
-    virtual void GetBordersForSizer(int *borderTop, int *borderOther) const;
+    virtual void GetBordersForSizer(int *borderTop, int *borderOther) const wxOVERRIDE;
 
-    virtual WXDWORD MSWGetStyle(long style, WXDWORD *exstyle) const;
+    virtual WXDWORD MSWGetStyle(long style, WXDWORD *exstyle) const wxOVERRIDE;
 
     // returns true if the platform should explicitly apply a theme border
-    virtual bool CanApplyThemeBorder() const { return false; }
+    virtual bool CanApplyThemeBorder() const wxOVERRIDE { return false; }
 
 protected:
-    virtual wxSize DoGetBestSize() const;
+    virtual wxSize DoGetBestSize() const wxOVERRIDE;
 
-#ifndef __WXWINCE__
 public:
-    virtual WXLRESULT MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam);
+    virtual WXLRESULT MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam) wxOVERRIDE;
 
 protected:
     // return the region with all the windows inside this static box excluded
@@ -63,7 +62,6 @@ protected:
     virtual void PaintForeground(wxDC& dc, const struct tagRECT& rc);
 
     void OnPaint(wxPaintEvent& event);
-#endif // !__WXWINCE__
 
     wxDECLARE_DYNAMIC_CLASS_NO_COPY(wxStaticBox);
 };

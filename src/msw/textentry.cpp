@@ -39,6 +39,9 @@
     #include "wx/msw/uxtheme.h"
 #endif
 
+#include "wx/msw/wrapwin.h"
+#include <shlwapi.h>
+
 #define GetEditHwnd() ((HWND)(GetEditHWND()))
 
 // ----------------------------------------------------------------------------
@@ -63,10 +66,6 @@
     #endif
 #endif
 
-#ifndef ACO_UPDOWNKEYDROPSLIST
-    #define ACO_UPDOWNKEYDROPSLIST 0x20
-#endif
-
 #ifndef SHACF_FILESYS_ONLY
     #define SHACF_FILESYS_ONLY 0x00000010
 #endif
@@ -80,9 +79,6 @@
 // above.
 #include <initguid.h>
 
-namespace
-{
-
 // Normally this interface and its IID are defined in shobjidl.h header file
 // included in the platform SDK but MinGW and Cygwin don't have it so redefine
 // the interface ourselves and, as long as we do it all, do it for all
@@ -94,6 +90,9 @@ public:
     virtual HRESULT wxSTDCALL GetDropDownStatus(DWORD *, LPWSTR *) = 0;
     virtual HRESULT wxSTDCALL ResetEnumerator() = 0;
 };
+
+namespace
+{
 
 DEFINE_GUID(wxIID_IAutoCompleteDropDown,
     0x3cd141f4, 0x3c6a, 0x11d2, 0xbc, 0xaa, 0x00, 0xc0, 0x4f, 0xd9, 0x29, 0xdb);
@@ -172,7 +171,7 @@ public:
 
     virtual HRESULT STDMETHODCALLTYPE Next(ULONG celt,
                                            LPOLESTR *rgelt,
-                                           ULONG *pceltFetched)
+                                           ULONG *pceltFetched) wxOVERRIDE
     {
         if ( !rgelt || (!pceltFetched && celt > 1) )
             return E_POINTER;
@@ -214,7 +213,7 @@ public:
         return S_OK;
     }
 
-    virtual HRESULT STDMETHODCALLTYPE Skip(ULONG celt)
+    virtual HRESULT STDMETHODCALLTYPE Skip(ULONG celt) wxOVERRIDE
     {
         if ( !celt )
             return E_INVALIDARG;
@@ -236,7 +235,7 @@ public:
         return S_OK;
     }
 
-    virtual HRESULT STDMETHODCALLTYPE Reset()
+    virtual HRESULT STDMETHODCALLTYPE Reset() wxOVERRIDE
     {
         CSLock lock(m_csRestart);
 
@@ -245,7 +244,7 @@ public:
         return S_OK;
     }
 
-    virtual HRESULT STDMETHODCALLTYPE Clone(IEnumString **ppEnum)
+    virtual HRESULT STDMETHODCALLTYPE Clone(IEnumString **ppEnum) wxOVERRIDE
     {
         if ( !ppEnum )
             return E_POINTER;
@@ -775,24 +774,6 @@ void wxTextEntry::GetSelection(long *from, long *to) const
 
 bool wxTextEntry::DoAutoCompleteFileNames(int flags)
 {
-    typedef HRESULT (WINAPI *SHAutoComplete_t)(HWND, DWORD);
-    static SHAutoComplete_t s_pfnSHAutoComplete = (SHAutoComplete_t)-1;
-    static wxDynamicLibrary s_dllShlwapi;
-    if ( s_pfnSHAutoComplete == (SHAutoComplete_t)-1 )
-    {
-        if ( !s_dllShlwapi.Load(wxT("shlwapi.dll"), wxDL_VERBATIM | wxDL_QUIET) )
-        {
-            s_pfnSHAutoComplete = NULL;
-        }
-        else
-        {
-            wxDL_INIT_FUNC(s_pfn, SHAutoComplete, s_dllShlwapi);
-        }
-    }
-
-    if ( !s_pfnSHAutoComplete )
-        return false;
-
     DWORD dwFlags = 0;
     if ( flags & wxFILE )
         dwFlags |= SHACF_FILESYS_ONLY;
@@ -804,7 +785,7 @@ bool wxTextEntry::DoAutoCompleteFileNames(int flags)
         return false;
     }
 
-    HRESULT hr = (*s_pfnSHAutoComplete)(GetEditHwnd(), dwFlags);
+    HRESULT hr = ::SHAutoComplete(GetEditHwnd(), dwFlags);
     if ( FAILED(hr) )
     {
         wxLogApiError(wxT("SHAutoComplete()"), hr);
@@ -913,7 +894,7 @@ void wxTextEntry::SetEditable(bool editable)
 }
 
 // ----------------------------------------------------------------------------
-// max length
+// input restrictions
 // ----------------------------------------------------------------------------
 
 void wxTextEntry::SetMaxLength(unsigned long len)
@@ -926,6 +907,15 @@ void wxTextEntry::SetMaxLength(unsigned long len)
     }
 
     ::SendMessage(GetEditHwnd(), EM_LIMITTEXT, len, 0);
+}
+
+void wxTextEntry::ForceUpper()
+{
+    ConvertToUpperCase();
+
+    const HWND hwnd = GetEditHwnd();
+    const LONG styleOld = ::GetWindowLong(hwnd, GWL_STYLE);
+    ::SetWindowLong(hwnd, GWL_STYLE, styleOld | ES_UPPERCASE);
 }
 
 // ----------------------------------------------------------------------------
@@ -978,7 +968,6 @@ wxString wxTextEntry::GetHint() const
 
 bool wxTextEntry::DoSetMargins(const wxPoint& margins)
 {
-#if !defined(__WXWINCE__)
     bool res = true;
 
     if ( margins.x != -1 )
@@ -997,22 +986,15 @@ bool wxTextEntry::DoSetMargins(const wxPoint& margins)
     }
 
     return res;
-#else
-    return false;
-#endif
 }
 
 wxPoint wxTextEntry::DoGetMargins() const
 {
-#if !defined(__WXWINCE__)
     LRESULT lResult = ::SendMessage(GetEditHwnd(), EM_GETMARGINS,
                                     0, 0);
     int left = LOWORD(lResult);
     int top = -1;
     return wxPoint(left, top);
-#else
-    return wxPoint(-1, -1);
-#endif
 }
 
 #endif // wxUSE_TEXTCTRL || wxUSE_COMBOBOX

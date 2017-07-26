@@ -75,10 +75,8 @@ wxEND_EVENT_TABLE()
 // function prototypes
 // ----------------------------------------------------------------------------
 
-LRESULT APIENTRY _EXPORT wxComboEditWndProc(HWND hWnd,
-                                            UINT message,
-                                            WPARAM wParam,
-                                            LPARAM lParam);
+LRESULT APIENTRY
+wxComboEditWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 // ---------------------------------------------------------------------------
 // global vars
@@ -125,10 +123,8 @@ bool ShouldForwardFromEditToCombo(UINT message)
 // wnd proc for subclassed edit control
 // ----------------------------------------------------------------------------
 
-LRESULT APIENTRY _EXPORT wxComboEditWndProc(HWND hWnd,
-                                            UINT message,
-                                            WPARAM wParam,
-                                            LPARAM lParam)
+LRESULT APIENTRY
+wxComboEditWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     HWND hwndCombo = ::GetParent(hWnd);
     wxWindow *win = wxFindWinFromHandle((WXHWND)hwndCombo);
@@ -314,11 +310,9 @@ bool wxComboBox::MSWCommand(WXUINT param, WXWORD id)
             break;
 
         case CBN_SELENDOK:
-#ifndef __SMARTPHONE__
             // we need to reset this to prevent the selection from being undone
             // by wxChoice, see wxChoice::MSWCommand() and comments there
             m_lastAcceptedSelection = wxID_NONE;
-#endif
 
             // set these variables so that they could be also fixed in
             // CBN_EDITCHANGE below
@@ -400,13 +394,8 @@ WXHWND wxComboBox::GetEditHWNDIfAvailable() const
         return (WXHWND) ::ChildWindowFromPoint(GetHwnd(), pt);
     }
 
-    // notice that a slightly safer alternative could be to use FindWindowEx()
-    // but it's not available under WinCE so just take the first child for now
-    // to keep one version of the code for all platforms and fix it later if
-    // problems are discovered
-
     // we assume that the only child of the combobox is the edit window
-    return (WXHWND)::GetWindow(GetHwnd(), GW_CHILD);
+    return (WXHWND)::FindWindowEx(GetHwnd(), NULL, wxT("EDIT"), NULL);
 }
 
 WXHWND wxComboBox::GetEditHWND() const
@@ -504,10 +493,8 @@ WXDWORD wxComboBox::MSWGetStyle(long style, WXDWORD *exstyle) const
 
     if ( style & wxCB_READONLY )
         msStyle |= CBS_DROPDOWNLIST;
-#ifndef __WXWINCE__
     else if ( style & wxCB_SIMPLE )
         msStyle |= CBS_SIMPLE; // A list (shown always) and edit control
-#endif
     else
         msStyle |= CBS_DROPDOWN;
 
@@ -709,7 +696,6 @@ wxWindow *wxComboBox::MSWFindItem(long id, WXHWND hWnd) const
 
 void wxComboBox::SetLayoutDirection(wxLayoutDirection dir)
 {
-#ifndef __WXWINCE__
     // Edit field and drop-down list must be handled explicitly.
 
     // Edit field is a special EDIT control (e.g. it always returns null
@@ -739,7 +725,6 @@ void wxComboBox::SetLayoutDirection(wxLayoutDirection dir)
     {
         wxUpdateLayoutDirection(info.hwndList, dir);
     }
-#endif // !__WXWINCE__
 
     wxChoice::SetLayoutDirection(dir);
 }

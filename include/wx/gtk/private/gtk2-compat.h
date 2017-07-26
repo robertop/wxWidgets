@@ -193,6 +193,13 @@ static inline void wx_gtk_cell_renderer_get_padding(GtkCellRenderer* cell, gint*
 }
 #define gtk_cell_renderer_get_padding wx_gtk_cell_renderer_get_padding
 
+static inline void wx_gtk_cell_renderer_set_padding(GtkCellRenderer* cell, gint xpad, gint ypad)
+{
+    cell->xpad = xpad;
+    cell->ypad = ypad;
+}
+#define gtk_cell_renderer_set_padding wx_gtk_cell_renderer_set_padding
+
 static inline void wx_gtk_widget_get_allocation(GtkWidget* widget, GtkAllocation* allocation)
 {
     *allocation = widget->allocation;
@@ -379,6 +386,8 @@ static inline gboolean wx_gtk_window_has_group(GtkWindow* window)
 
 // ----------------------------------------------------------------------------
 // the following were introduced in GTK+ 2.24
+
+#define gdk_window_get_visual gdk_drawable_get_visual
 
 static inline GdkDisplay* wx_gdk_window_get_display(GdkWindow* window)
 {

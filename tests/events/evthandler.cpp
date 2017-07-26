@@ -164,6 +164,7 @@ private:
         CPPUNIT_TEST( BindFunctionUsingBaseEvent );
         CPPUNIT_TEST( BindNonHandler );
         CPPUNIT_TEST( InvalidBind );
+        CPPUNIT_TEST( UnbindFromHandler );
     CPPUNIT_TEST_SUITE_END();
 
     void BuiltinConnect();
@@ -178,6 +179,7 @@ private:
     void BindFunctionUsingBaseEvent();
     void BindNonHandler();
     void InvalidBind();
+    void UnbindFromHandler();
 
 
     // these member variables exceptionally don't use "m_" prefix because
@@ -459,3 +461,69 @@ void EvtHandlerTestCase::InvalidBind()
     myHandler.Bind(MyEventType, &MyHandler::OnMyEvent, &mySink);
 #endif
 }
+
+// Helpers for UnbindFromHandler() test, have to be declared outside of the
+// function in C++98.
+struct Handler1
+{
+    void OnDontCall(MyEvent&)
+    {
+        // Although this handler is bound, the second one below is bound
+        // later and so will be called first and will disconnect this one
+        // before it has a chance to be called.
+        CPPUNIT_FAIL("shouldn't be called");
+    }
+};
+
+class Handler2
+{
+public:
+    Handler2(MyHandler& handler, Handler1& h1)
+        : m_handler(handler),
+          m_h1(h1)
+    {
+    }
+
+    void OnUnbind(MyEvent& e)
+    {
+        m_handler.Unbind(MyEventType, &Handler1::OnDontCall, &m_h1);
+
+        // Check that the now disconnected first handler is not executed.
+        e.Skip();
+    }
+
+private:
+    MyHandler& m_handler;
+    Handler1& m_h1;
+
+    wxDECLARE_NO_COPY_CLASS(Handler2);
+};
+
+void EvtHandlerTestCase::UnbindFromHandler()
+{
+    Handler1 h1;
+    handler.Bind(MyEventType, &Handler1::OnDontCall, &h1);
+
+    Handler2 h2(handler, h1);
+    handler.Bind(MyEventType, &Handler2::OnUnbind, &h2);
+
+    handler.ProcessEvent(e);
+}
+
+// This is a compilation-time-only test: just check that a class inheriting
+// from wxEvtHandler non-publicly can use Bind() with its method, this used to
+// result in compilation errors.
+// Note that this test will work only on C++11 compilers, so we test this only
+// for such compilers.
+#if __cplusplus >= 201103
+class HandlerNonPublic : protected wxEvtHandler
+{
+public:
+    HandlerNonPublic()
+    {
+        Bind(wxEVT_IDLE, &HandlerNonPublic::OnIdle, this);
+    }
+
+    void OnIdle(wxIdleEvent&) { }
+};
+#endif // C++11

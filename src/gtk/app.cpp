@@ -28,17 +28,10 @@
 #include "wx/apptrait.h"
 #include "wx/fontmap.h"
 
-#if wxUSE_LIBHILDON
-    #include <hildon-widgets/hildon-program.h>
-#endif // wxUSE_LIBHILDON
-
-#if wxUSE_LIBHILDON2
-    #include <hildon/hildon.h>
-#endif // wxUSE_LIBHILDON2
-
 #include <gtk/gtk.h>
 #include "wx/gtk/private.h"
 
+#include "wx/gtk/mimetype.h"
 //-----------------------------------------------------------------------------
 // link GnomeVFS
 //-----------------------------------------------------------------------------
@@ -108,6 +101,21 @@ static gboolean wxapp_idle_callback(gpointer)
 }
 }
 
+// 0: no change, 1: focus in, 2: focus out
+static int gs_focusChange;
+
+extern "C" {
+static gboolean
+wx_focus_event_hook(GSignalInvocationHint*, unsigned, const GValue* param_values, void* data)
+{
+    // If focus change on TLW
+    if (GTK_IS_WINDOW(g_value_peek_pointer(param_values)))
+        gs_focusChange = GPOINTER_TO_INT(data);
+
+    return true;
+}
+}
+
 bool wxApp::DoIdle()
 {
     guint id_save;
@@ -131,6 +139,12 @@ bool wxApp::DoIdle()
     }
 
     gdk_threads_enter();
+
+    if (gs_focusChange) {
+        SetActive(gs_focusChange == 1, NULL);
+        gs_focusChange = 0;
+    }
+
     bool needMore;
     do {
         ProcessPendingEvents();
@@ -254,14 +268,6 @@ bool wxApp::OnInitGui()
     }
 #endif
 
-#if wxUSE_LIBHILDON || wxUSE_LIBHILDON2
-    if ( !GetHildonProgram() )
-    {
-        wxLogError(_("Unable to initialize Hildon program"));
-        return false;
-    }
-#endif // wxUSE_LIBHILDON || wxUSE_LIBHILDON2
-
     return true;
 }
 
@@ -274,7 +280,13 @@ bool wxApp::Initialize(int& argc_, wxChar **argv_)
 #if wxUSE_THREADS
     if (!g_thread_supported())
     {
+        // g_thread_init() does nothing and is deprecated in recent glib but
+        // might still be needed in the older versions, which are the only ones
+        // for which this code is going to be executed (as g_thread_supported()
+        // is always TRUE in these recent glib versions anyhow).
+        wxGCC_WARNING_SUPPRESS(deprecated-declarations)
         g_thread_init(NULL);
+        wxGCC_WARNING_RESTORE()
         gdk_threads_init();
     }
 #endif // wxUSE_THREADS
@@ -384,7 +396,7 @@ bool wxApp::Initialize(int& argc_, wxChar **argv_)
 
     // update internal arg[cv] as GTK+ may have removed processed options:
     this->argc = argc_;
-    this->argv = argv_;
+    this->argv.Init(argc_, argv_);
 
     if ( m_traits )
     {
@@ -424,6 +436,10 @@ bool wxApp::Initialize(int& argc_, wxChar **argv_)
         return false;
     }
 
+#if wxUSE_MIMETYPE
+    wxMimeTypesManagerFactory::Set(new wxGTKMimeTypesManagerFactory());
+#endif
+
     // we cannot enter threads before gtk_init is done
     gdk_threads_enter();
 
@@ -431,8 +447,18 @@ bool wxApp::Initialize(int& argc_, wxChar **argv_)
     wxFont::SetDefaultEncoding(wxLocale::GetSystemEncoding());
 #endif
 
-    // make sure GtkWidget type is loaded, idle hooks need it
-    g_type_class_ref(GTK_TYPE_WIDGET);
+    // make sure GtkWidget type is loaded, signal emission hooks need it
+    const GType widgetType = GTK_TYPE_WIDGET;
+    g_type_class_ref(widgetType);
+
+    // focus in/out hooks used for generating wxEVT_ACTIVATE_APP
+    g_signal_add_emission_hook(
+        g_signal_lookup("focus_in_event", widgetType),
+        0, wx_focus_event_hook, GINT_TO_POINTER(1), NULL);
+    g_signal_add_emission_hook(
+        g_signal_lookup("focus_out_event", widgetType),
+        0, wx_focus_event_hook, GINT_TO_POINTER(2), NULL);
+
     WakeUpIdle();
 
     return true;
@@ -444,7 +470,9 @@ void wxApp::CleanUp()
         g_source_remove(m_idleSourceId);
 
     // release reference acquired by Initialize()
-    g_type_class_unref(g_type_class_peek(GTK_TYPE_WIDGET));
+    gpointer gt = g_type_class_peek(GTK_TYPE_WIDGET);
+    if (gt != NULL)
+        g_type_class_unref(gt);
 
     gdk_threads_leave();
 
@@ -530,12 +558,3 @@ bool wxApp::GTKIsUsingGlobalMenu()
 
     return s_isUsingGlobalMenu == 1;
 }
-
-#if wxUSE_LIBHILDON || wxUSE_LIBHILDON2
-// Maemo-specific method: get the main program object
-HildonProgram *wxApp::GetHildonProgram()
-{
-    return hildon_program_get_instance();
-}
-
-#endif // wxUSE_LIBHILDON || wxUSE_LIBHILDON2

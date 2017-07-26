@@ -137,7 +137,7 @@ enum wxWindowVariant
            is the old name for this style. Windows only.
     @style{wxBORDER_THEME}
            Displays a native border suitable for a control, on the current
-           platform. On Windows XP or Vista, this will be a themed border; on
+           platform. On Windows, this will be a themed border; on
            most other platforms a sunken border will be used. For more
            information for themed borders on Windows, please see Themed
            borders on Windows.
@@ -150,7 +150,9 @@ enum wxWindowVariant
            The window is transparent, that is, it will not receive paint
            events. Windows only.
     @style{wxTAB_TRAVERSAL}
-           Use this to enable tab traversal for non-dialog windows.
+           This style is used by wxWidgets for the windows supporting TAB
+           navigation among their children, such as wxDialog and wxPanel. It
+           should almost never be used in the application code.
     @style{wxWANTS_CHARS}
            Use this to indicate that the window wants to get all char/key
            events for all keys - even for keys like TAB or ENTER which are
@@ -190,11 +192,6 @@ enum wxWindowVariant
     @endStyleTable
 
     @beginExtraStyleTable
-    @style{wxWS_EX_VALIDATE_RECURSIVELY}
-           By default, wxWindow::Validate(), wxWindow::TransferDataTo() and
-           wxWindow::TransferDataFromWindow() only work on
-           direct children of the window (compatible behaviour).
-           Set this flag to make them recursively descend into all subwindows.
     @style{wxWS_EX_BLOCK_EVENTS}
            wxCommandEvents and the objects of the derived classes are
            forwarded to the parent window and so on recursively by default.
@@ -551,7 +548,7 @@ public:
 
         @since 2.9.4
      */
-    bool IsDescendant(wxWindowBase* win) const;
+    bool IsDescendant(wxWindow* win) const;
 
     /**
         Reparents the window, i.e.\ the window will be removed from its
@@ -588,7 +585,7 @@ public:
         @param vflag
             Whether the vertical scroll bar should always be visible.
 
-        @remarks This function is currently only implemented under Mac/Carbon.
+        @remarks This function is currently not implemented.
     */
     virtual void AlwaysShowScrollbars(bool hflag = true, bool vflag = true);
 
@@ -992,7 +989,74 @@ public:
     static wxPoint FromDIP(const wxPoint& pt, const wxWindow* w);
 
     /// @overload
-    static wxSize FromDIP(const wxSize& sz, const wxWindow* w);
+    static wxSize FromDIP(int d, const wxWindow* w);
+
+
+    /**
+    Convert pixel values of the current toolkit to DPI-independent pixel values.
+
+    A DPI-independent pixel is just a pixel at the standard 96 DPI
+    resolution. To keep the same physical size at higher resolution, the
+    physical pixel value must be scaled by GetContentScaleFactor() but this
+    scaling may be already done by the underlying toolkit (GTK+, Cocoa,
+    ...) automatically. This method performs the conversion only if it is
+    not already done by the lower level toolkit, For example, you may
+    want to use this to store window sizes and positions so that they
+    can be re-used regardless of the display DPI:
+    @code
+    wxPoint pt(ToDIP(GetPosition()));
+    wxSize size(ToDIP(GetSize()));
+    @endcode
+
+    Also note that if either component of @a sz has the special value of
+    -1, it is returned unchanged independently of the current DPI, to
+    preserve the special value of -1 in wxWidgets API (it is often used to
+    mean "unspecified").
+
+    @since 3.1.0
+    */
+    wxSize ToDIP(const wxSize& sz) const;
+
+    /// @overload
+    wxPoint ToDIP(const wxPoint& pt) const;
+
+    /**
+    Convert pixel values of the current toolkit to DPI-independent pixel values.
+
+    This is the same as ToDIP(const wxSize& sz) overload, but assumes
+    that the resolution is the same in horizontal and vertical directions.
+
+    If @a d has the special value of -1, it is returned unchanged
+    independently of the current DPI.
+
+    @since 3.1.0
+    */
+    int ToDIP(int d) const;
+
+    /**
+    Non window-specific pixel to DPI-independent pixels conversion functions.
+
+    The display resolution depends on the window in general as different
+    windows can appear on different monitors using different resolutions,
+    however sometimes no window is available for converting the resolution
+    independent pixels to the physical values and in this case these static
+    overloads can be used with @NULL value for @a w argument.
+
+    Using these methods is discouraged as passing @NULL will prevent your
+    application from correctly supporting monitors with different
+    resolutions even in the future wxWidgets versions which will add
+    support for them, and passing non-@NULL window is just a less
+    convenient way of calling the non-static ToDIP() method.
+
+    @since 3.1.0
+    */
+    static wxSize ToDIP(const wxSize& sz, const wxWindow* w);
+
+    /// @overload
+    static wxPoint ToDIP(const wxPoint& pt, const wxWindow* w);
+
+    /// @overload
+    static wxSize ToDIP(int d, const wxWindow* w);
 
     /**
         This functions returns the best acceptable minimal size for the window.
@@ -1655,6 +1719,11 @@ public:
     */
     void Move(const wxPoint& pt, int flags = wxSIZE_USE_EXISTING);
 
+    /**
+        Moves the window to the specified position.
+
+        This is exactly the same as calling Move() with the default arguments.
+     */
     void SetPosition(const wxPoint& pt);
 
     //@}
@@ -2678,9 +2747,7 @@ public:
             animation time for the current platform is used.
 
         @note Currently this function is only implemented in wxMSW and wxOSX
-              (for wxTopLevelWindows only in Carbon version and for any kind of
-              windows in Cocoa) and does the same thing as Show() in the other
-              ports.
+              and does the same thing as Show() in the other ports.
 
         @since 2.9.0
 
@@ -2866,8 +2933,8 @@ public:
         Transfers values from child controls to data areas specified by their
         validators. Returns @false if a transfer failed.
 
-        If the window has @c wxWS_EX_VALIDATE_RECURSIVELY extra style flag set,
-        the method will also call TransferDataFromWindow() of all child windows.
+        Notice that this also calls TransferDataFromWindow() for all children
+        recursively.
 
         @see TransferDataToWindow(), wxValidator, Validate()
     */
@@ -2877,8 +2944,8 @@ public:
         Transfers values to child controls from data areas specified by their
         validators.
 
-        If the window has @c wxWS_EX_VALIDATE_RECURSIVELY extra style flag set,
-        the method will also call TransferDataToWindow() of all child windows.
+        Notice that this also calls TransferDataToWindow() for all children
+        recursively.
 
         @return Returns @false if a transfer failed.
 
@@ -2888,8 +2955,8 @@ public:
 
     /**
         Validates the current values of the child controls using their validators.
-        If the window has @c wxWS_EX_VALIDATE_RECURSIVELY extra style flag set,
-        the method will also call Validate() of all child windows.
+
+        Notice that this also calls Validate() for all children recursively.
 
         @return Returns @false if any of the validations failed.
 
@@ -2984,6 +3051,9 @@ public:
 
     /**
         Sets the layout direction for this window.
+
+        This function is only supported under MSW and GTK platforms, but not
+        under Mac currently.
     */
     virtual void SetLayoutDirection(wxLayoutDirection dir);
 

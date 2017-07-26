@@ -466,6 +466,35 @@ public:
         return false;
     }
 
+#if wxUSE_ACCESSIBILITY
+    virtual wxString GetAccessibleDescription() const wxOVERRIDE
+    {
+        wxString text = m_value.GetText();
+        if ( !text.empty() )
+        {
+            text += wxS(" ");
+        }
+
+        switch ( m_value.m_checkedState )
+        {
+            case wxCHK_CHECKED:
+                /* TRANSLATORS: Checkbox state name */
+                text += _("checked");
+                break;
+            case wxCHK_UNCHECKED:
+                /* TRANSLATORS: Checkbox state name */
+                text += _("unchecked");
+                break;
+            case wxCHK_UNDETERMINED:
+                /* TRANSLATORS: Checkbox state name */
+                text += _("undetermined");
+                break;
+        }
+
+        return text;
+    }
+#endif // wxUSE_ACCESSIBILITY
+
     wxSize GetSize() const wxOVERRIDE
     {
         wxSize size = GetCheckSize();
@@ -733,7 +762,10 @@ void wxTreeListModel::DeleteItem(Node* item)
         previous->DeleteNext();
     }
 
-    ItemDeleted(ToDVI(parent), ToDVI(item));
+    // Note that the item is already deleted by now, so we can't use it in any
+    // way, e.g. by calling ToDVI(item) which does dereference the pointer, but
+    // ToNonRootDVI() that we use here does not.
+    ItemDeleted(ToDVI(parent), ToNonRootDVI(item));
 }
 
 void wxTreeListModel::DeleteAllItems()

@@ -56,11 +56,7 @@ void wxBookCtrlBase::Init()
     m_bookctrl = NULL;
     m_fitToCurrentPage = false;
 
-#if defined(__WXWINCE__)
-    m_internalBorder = 1;
-#else
     m_internalBorder = 5;
-#endif
 
     m_controlMargin = 0;
     m_controlSizer = NULL;
@@ -150,9 +146,7 @@ wxSize wxBookCtrlBase::DoGetBestSize() const
 
     // convert display area to window area, adding the size necessary for the
     // tabs
-    wxSize best = CalcSizeFromPage(bestSize);
-    CacheBestSize(best);
-    return best;
+    return CalcSizeFromPage(bestSize);
 }
 
 wxRect wxBookCtrlBase::GetPageRect() const

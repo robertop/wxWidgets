@@ -28,7 +28,7 @@ enum wxFontFamily
     /// between @c wxFONTFAMILY_MODERN and @c wxFONTFAMILY_TELETYPE.
     wxFONTFAMILY_MODERN = wxMODERN,
 
-    /// A teletype (i.e. monospaced) font.
+    /// A teletype (i.e.\ monospaced) font.
     /// Monospace fonts have a fixed width like typewriters and often have strong angular
     /// or block serifs. Monospace font faces are often used code samples and have a simple,
     /// functional font style.
@@ -470,7 +470,7 @@ public:
 
         @since 2.9.5
      */
-    wxFont(const wxFontInfo& font);
+    wxFont(const wxFontInfo& fontInfo);
 
     /**
         Creates a font object with the specified attributes and size in points.
@@ -485,7 +485,11 @@ public:
         @endcode
 
         @param pointSize
-            Size in points. See SetPointSize() for more info.
+            Size in points. See SetPointSize() for more info. Notice that, for
+            historical reasons, the value 70 here is interpreted at @c
+            wxDEFAULT and results in creation of the font with the default size
+            and not of a font with the size of 70pt. If you really need the
+            latter, please use SetPointSize(70).
         @param family
             The font family: a generic portable way of referring to fonts without specifying a
             facename. This parameter must be one of the ::wxFontFamily enumeration values.

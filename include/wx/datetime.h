@@ -16,11 +16,7 @@
 
 #if wxUSE_DATETIME
 
-#ifdef __WXWINCE__
-    #include "wx/msw/wince/time.h"
-#else
-    #include <time.h>
-#endif // OS
+#include <time.h>
 
 #include <limits.h>             // for INT_MIN
 
@@ -120,8 +116,8 @@ extern WXDLLIMPEXP_DATA_BASE(const wxDateTime) wxDefaultDateTime;
 // if configure detected strftime(), we have it too
 #ifdef HAVE_STRFTIME
     #define wxHAS_STRFTIME
-// suppose everyone else has strftime except Win CE unless VC8 is used
-#elif !defined(__WXWINCE__) || defined(__VISUALC8__)
+// suppose everyone else has strftime
+#else
     #define wxHAS_STRFTIME
 #endif
 
@@ -227,11 +223,6 @@ public:
         //
         // TODO move this to intl.h
 
-// Required for WinCE
-#ifdef USA
-#undef USA
-#endif
-
     enum Country
     {
         Country_Unknown, // no special information for this country
@@ -285,6 +276,15 @@ public:
         Monday_First,    // week starts with a Monday
         Sunday_First     // week starts with a Sunday
     };
+
+    // Currently we assume that DST is always shifted by 1 hour, this seems to
+    // be always true in practice. If this ever needs to change, search for all
+    // places using DST_OFFSET and update them.
+    enum
+    {
+        DST_OFFSET = 3600
+    };
+
 
     // helper classes
     // ------------------------------------------------------------------------
@@ -459,7 +459,7 @@ public:
     // ------------------------------------------------------------------------
 
         // default ctor does not initialize the object, use Set()!
-    wxDateTime() { m_time = wxLongLong(wxINT32_MIN, 0); }
+    wxDateTime() { m_time = wxINT64_MIN; }
 
         // from time_t: seconds since the Epoch 00:00:00 UTC, Jan 1, 1970)
     inline wxDateTime(time_t timet);
@@ -713,7 +713,7 @@ public:
     // ------------------------------------------------------------------------
 
         // is the date valid?
-    inline bool IsValid() const { return m_time != wxInvalidDateTime.m_time; }
+    inline bool IsValid() const { return m_time != wxLongLong(wxINT64_MIN); }
 
         // get the broken down date/time representation in the given timezone
         //
@@ -825,38 +825,35 @@ public:
 
     inline bool operator<(const wxDateTime& dt) const
     {
-        wxASSERT_MSG( IsValid() && dt.IsValid(), wxT("invalid wxDateTime") );
         return GetValue() < dt.GetValue();
     }
 
     inline bool operator<=(const wxDateTime& dt) const
     {
-        wxASSERT_MSG( IsValid() && dt.IsValid(), wxT("invalid wxDateTime") );
         return GetValue() <= dt.GetValue();
     }
 
     inline bool operator>(const wxDateTime& dt) const
     {
-        wxASSERT_MSG( IsValid() && dt.IsValid(), wxT("invalid wxDateTime") );
         return GetValue() > dt.GetValue();
     }
 
     inline bool operator>=(const wxDateTime& dt) const
     {
-        wxASSERT_MSG( IsValid() && dt.IsValid(), wxT("invalid wxDateTime") );
         return GetValue() >= dt.GetValue();
     }
 
     inline bool operator==(const wxDateTime& dt) const
     {
-        wxASSERT_MSG( IsValid() && dt.IsValid(), wxT("invalid wxDateTime") );
-        return GetValue() == dt.GetValue();
+        // Intentionally do not call GetValue() here, in order that
+        // invalid wxDateTimes may be compared for equality
+        return m_time == dt.m_time;
     }
 
     inline bool operator!=(const wxDateTime& dt) const
     {
-        wxASSERT_MSG( IsValid() && dt.IsValid(), wxT("invalid wxDateTime") );
-        return GetValue() != dt.GetValue();
+        // As above, don't use GetValue() here.
+        return m_time != dt.m_time;
     }
 
     // arithmetics with dates (see also below for more operators)
@@ -1222,7 +1219,7 @@ public:
     inline wxTimeSpan& Subtract(const wxTimeSpan& diff);
         // subtract another timespan
     wxTimeSpan& operator-=(const wxTimeSpan& diff) { return Subtract(diff); }
-    inline wxTimeSpan operator-(const wxTimeSpan& ts)
+    inline wxTimeSpan operator-(const wxTimeSpan& ts) const
     {
         return wxTimeSpan(GetValue() - ts.GetValue());
     }
@@ -1252,7 +1249,7 @@ public:
         // there is intentionally no division because we don't want to
         // introduce rounding errors in time calculations
 
-    // comparaison (see also operator versions below)
+    // comparison (see also operator versions below)
     // ------------------------------------------------------------------------
 
         // is the timespan null?
@@ -1783,23 +1780,17 @@ inline wxDateTime wxDateTime::GetYearDay(wxDateTime_t yday) const
 
 inline bool wxDateTime::IsEqualTo(const wxDateTime& datetime) const
 {
-    wxASSERT_MSG( IsValid() && datetime.IsValid(), wxT("invalid wxDateTime"));
-
-    return m_time == datetime.m_time;
+    return *this == datetime;
 }
 
 inline bool wxDateTime::IsEarlierThan(const wxDateTime& datetime) const
 {
-    wxASSERT_MSG( IsValid() && datetime.IsValid(), wxT("invalid wxDateTime"));
-
-    return m_time < datetime.m_time;
+    return *this < datetime;
 }
 
 inline bool wxDateTime::IsLaterThan(const wxDateTime& datetime) const
 {
-    wxASSERT_MSG( IsValid() && datetime.IsValid(), wxT("invalid wxDateTime"));
-
-    return m_time > datetime.m_time;
+    return *this > datetime;
 }
 
 inline bool wxDateTime::IsStrictlyBetween(const wxDateTime& t1,

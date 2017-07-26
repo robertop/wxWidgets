@@ -8,6 +8,10 @@
 // Licence:     wxWindows licence
 /////////////////////////////////////////////////////////////////////////////
 
+#include "wx/hashmap.h"
+
+WX_DECLARE_HASH_MAP(unsigned, wxString, wxIntegerHash, wxIntegerEqual,
+                    IntToStringMap);
 
 // ----------------------------------------------------------------------------
 // MyMusicTreeModelNode: a node inside MyMusicTreeModel
@@ -194,6 +198,7 @@ public:
     {
         Col_EditableText,
         Col_IconText,
+        Col_Date,
         Col_TextWithAttr,
         Col_Custom,
         Col_Max
@@ -234,6 +239,7 @@ public:
 private:
     wxArrayString    m_textColValues;
     wxArrayString    m_iconColValues;
+    IntToStringMap   m_customColValues;
     wxIcon           m_icon[2];
 };
 

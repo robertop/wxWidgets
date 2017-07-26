@@ -32,10 +32,8 @@
         Selects alternative style of @c +/@c - buttons and shows rotating
         ("twisting") arrows instead. Currently this style is only implemented
         under Microsoft Windows Vista and later Windows versions and is ignored
-        under the other platforms. Notice that under Vista this style results
-        in the same appearance as used by the tree control in Explorer and
-        other built-in programs and so using it may be preferable to the
-        default style.
+        under the other platforms as enabling it is equivalent to using
+        wxSystemThemedControl::EnableSystemTheme().
     @style{wxTR_NO_LINES}
         Use this style to hide vertical level connectors.
     @style{wxTR_FULL_ROW_HIGHLIGHT}
@@ -210,7 +208,7 @@ public:
 
         The @a image and @a selImage parameters are an index within the normal
         image list specifying the image to use for unselected and selected
-        items, respectively. If @a image -1 and @a selImage is -1, the same
+        items, respectively. If @a image > -1 and @a selImage is -1, the same
         image is used for both selected and unselected items.
     */
     virtual wxTreeItemId AddRoot(const wxString& text, int image = -1,
@@ -695,7 +693,7 @@ public:
 
         The @a image and @a selImage parameters are an index within the normal
         image list specifying the image to use for unselected and selected
-        items, respectively. If @a image -1 and @a selImage is -1, the same
+        items, respectively. If @a image > -1 and @a selImage is -1, the same
         image is used for both selected and unselected items.
     */
     wxTreeItemId InsertItem(const wxTreeItemId& parent,
@@ -712,7 +710,7 @@ public:
 
         The @a image and @a selImage parameters are an index within the normal
         image list specifying the image to use for unselected and selected
-        items, respectively. If @a image -1 and @a selImage is -1, the same
+        items, respectively. If @a image > -1 and @a selImage is -1, the same
         image is used for both selected and unselected items.
     */
     wxTreeItemId InsertItem(const wxTreeItemId& parent,
@@ -778,7 +776,7 @@ public:
 
         The @a image and @a selImage parameters are an index within the normal
         image list specifying the image to use for unselected and selected
-        items, respectively. If @a image -1 and @a selImage is -1, the same
+        items, respectively. If @a image > -1 and @a selImage is -1, the same
         image is used for both selected and unselected items.
     */
     wxTreeItemId PrependItem(const wxTreeItemId& parent,

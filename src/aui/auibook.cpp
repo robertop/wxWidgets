@@ -186,6 +186,7 @@ bool wxAuiTabContainer::AddPage(wxWindow* page,
     wxAuiNotebookPage page_info;
     page_info = info;
     page_info.window = page;
+    page_info.hover = false;
 
     m_pages.Add(page_info);
 
@@ -205,6 +206,7 @@ bool wxAuiTabContainer::InsertPage(wxWindow* page,
     wxAuiNotebookPage page_info;
     page_info = info;
     page_info.window = page;
+    page_info.hover = false;
 
     if (idx >= m_pages.GetCount())
         m_pages.Add(page_info);
@@ -428,6 +430,10 @@ void wxAuiTabContainer::Render(wxDC* raw_dc, wxWindow* wnd)
 
     if (!dc.IsOk())
         return;
+
+    // ensure we show as many tabs as possible
+    while (m_tabOffset > 0 && IsTabVisible(page_count-1, m_tabOffset-1, &dc, wnd))
+        --m_tabOffset;
 
     // find out if size of tabs is larger than can be
     // afforded on screen
@@ -1233,20 +1239,28 @@ void wxAuiTabCtrl::OnMotion(wxMouseEvent& evt)
         }
     }
 
-#if wxUSE_TOOLTIPS
     wxWindow* wnd = NULL;
     if (evt.Moving() && TabHitTest(evt.m_x, evt.m_y, &wnd))
     {
+        SetHoverTab(wnd);
+
+#if wxUSE_TOOLTIPS
         wxString tooltip(m_pages[GetIdxFromWindow(wnd)].tooltip);
 
         // If the text changes, set it else, keep old, to avoid
         // 'moving tooltip' effect
         if (GetToolTipText() != tooltip)
             SetToolTip(tooltip);
+#endif // wxUSE_TOOLTIPS
     }
     else
+    {
+        SetHoverTab(NULL);
+
+#if wxUSE_TOOLTIPS
         UnsetToolTip();
 #endif // wxUSE_TOOLTIPS
+    }
 
     if (!evt.LeftIsDown() || m_clickPt == wxDefaultPosition)
         return;
@@ -1287,6 +1301,8 @@ void wxAuiTabCtrl::OnLeaveWindow(wxMouseEvent& WXUNUSED(event))
         Refresh();
         Update();
     }
+
+    SetHoverTab(NULL);
 }
 
 void wxAuiTabCtrl::OnButton(wxAuiNotebookEvent& event)
@@ -2662,7 +2678,10 @@ void wxAuiNotebook::OnTabEndDrag(wxAuiNotebookEvent& evt)
     wxPoint mouse_screen_pt = ::wxGetMousePosition();
     wxPoint mouse_client_pt = ScreenToClient(mouse_screen_pt);
 
-
+    // Update our selection (it may be updated again below but the code below
+    // can also return without doing anything else and this ensures that the
+    // selection is updated even then).
+    m_curPage = src_tabs->GetActivePage();
 
     // check for an external move
     if (m_flags & wxAUI_NB_TAB_EXTERNAL_MOVE)
@@ -2750,11 +2769,12 @@ void wxAuiNotebook::OnTabEndDrag(wxAuiNotebookEvent& evt)
                 nb->m_tabs.InsertPage(page_info.window, page_info, insert_idx);
 
                 nb->DoSizing();
+                dest_tabs->SetActivePage(insert_idx);
                 dest_tabs->DoShowHide();
                 dest_tabs->Refresh();
 
                 // set the selection in the destination tab control
-                nb->SetSelectionToPage(page_info);
+                nb->DoModifySelection(insert_idx, false);
 
                 // notify owner that the tab has been dragged
                 wxAuiNotebookEvent e2(wxEVT_AUINOTEBOOK_DRAG_DONE, m_windowId);
@@ -2785,8 +2805,10 @@ void wxAuiNotebook::OnTabEndDrag(wxAuiNotebookEvent& evt)
             dest_tabs = tab_frame->m_tabs;
 
             if (dest_tabs == src_tabs)
+            {
+                m_curPage = evt.GetSelection();
                 return;
-
+            }
 
             wxPoint pt = dest_tabs->ScreenToClient(mouse_screen_pt);
             wxWindow* target = NULL;
@@ -3448,6 +3470,27 @@ int wxAuiNotebook::DoModifySelection(size_t n, bool events)
     }
 
     return m_curPage;
+}
+
+void wxAuiTabCtrl::SetHoverTab(wxWindow* wnd)
+{
+    bool hoverChanged = false;
+
+    const size_t page_count = m_pages.GetCount();
+    for ( size_t i = 0; i < page_count; ++i )
+    {
+        wxAuiNotebookPage& page = m_pages.Item(i);
+        bool oldHover = page.hover;
+        page.hover = (page.window == wnd);
+        if ( oldHover != page.hover )
+            hoverChanged = true;
+    }
+
+    if ( hoverChanged )
+    {
+        Refresh();
+        Update();
+    }
 }
 
 

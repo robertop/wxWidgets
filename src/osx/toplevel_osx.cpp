@@ -99,12 +99,6 @@ wxTopLevelWindowMac::~wxTopLevelWindowMac()
 
 bool wxTopLevelWindowMac::Destroy()
 {
-    // NB: this will get called during destruction if we don't do it now,
-    // and may fire a kill focus event on a control being destroyed
-#if wxOSX_USE_CARBON
-    if (m_nowpeer && m_nowpeer->GetWXWindow())
-        ClearKeyboardFocus( (WindowRef)m_nowpeer->GetWXWindow() );
-#endif
     // delayed destruction: the tlw will be deleted during the next idle
     // loop iteration
     if ( !wxPendingDelete.Member(this) )
@@ -205,6 +199,33 @@ bool wxTopLevelWindowMac::IsFullScreen() const
     return m_nowpeer->IsFullScreen();
 }
 
+bool wxTopLevelWindowMac::EnableCloseButton(bool enable)
+{
+    // Unlike in wxMSW, wxSYSTEM_MENU is not sufficient to show
+    // a close button unless combined with one of the resize buttons.
+    if ( HasFlag(wxCLOSE_BOX) )
+        return m_nowpeer->EnableCloseButton( enable);
+
+    return false;
+}
+
+bool wxTopLevelWindowMac::EnableMaximizeButton(bool enable)
+{
+    // Both wxRESIZE_BORDER and wxMAXIMIZE_BOX create a resize border and
+    // add a maximize button.
+    if ( HasFlag(wxMAXIMIZE_BOX) || HasFlag(wxRESIZE_BORDER) )
+        return m_nowpeer->EnableMaximizeButton( enable);
+    return false;
+}
+
+bool wxTopLevelWindowMac::EnableMinimizeButton(bool enable)
+{
+    if ( HasFlag(wxMINIMIZE_BOX) )
+        return m_nowpeer->EnableMinimizeButton( enable);
+
+    return false;
+}
+
 void wxTopLevelWindowMac::RequestUserAttention(int flags)
 {
     return m_nowpeer->RequestUserAttention(flags);
@@ -228,4 +249,13 @@ bool wxTopLevelWindowMac::OSXIsModified() const
 void wxTopLevelWindowMac::SetRepresentedFilename(const wxString& filename)
 {
     m_nowpeer->SetRepresentedFilename(filename);
+}
+
+void wxTopLevelWindowMac::OSXSetIconizeState(bool iconize)
+{
+    if ( iconize != m_iconized )
+    {
+        m_iconized = iconize;
+        (void)SendIconizeEvent(iconize);
+    }
 }

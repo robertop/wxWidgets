@@ -1122,13 +1122,11 @@ wxEvtHandler::~wxEvtHandler()
 
     if (m_dynamicEvents)
     {
-        for ( wxList::iterator it = m_dynamicEvents->begin(),
-                               end = m_dynamicEvents->end();
-              it != end;
-              ++it )
+        size_t cookie;
+        for ( wxDynamicEventTableEntry* entry = GetFirstDynamicEntry(cookie);
+              entry;
+              entry = GetNextDynamicEntry(cookie) )
         {
-            wxDynamicEventTableEntry *entry = (wxDynamicEventTableEntry*)*it;
-
             // Remove ourselves from sink destructor notifications
             // (this has usually been done, in wxTrackable destructor)
             wxEvtHandler *eventSink = entry->m_fn->GetEvtHandler();
@@ -1606,69 +1604,78 @@ bool wxEvtHandler::SafelyProcessEvent(wxEvent& event)
     }
     catch ( ... )
     {
-        wxEventLoopBase * const loop = wxEventLoopBase::GetActive();
+        WXConsumeException();
+
+        return false;
+    }
+#endif // wxUSE_EXCEPTIONS
+}
+
+#if wxUSE_EXCEPTIONS
+/* static */
+void wxEvtHandler::WXConsumeException()
+{
+    wxEventLoopBase * const loop = wxEventLoopBase::GetActive();
+    try
+    {
+        if ( !wxTheApp || !wxTheApp->OnExceptionInMainLoop() )
+        {
+            if ( loop )
+                loop->Exit();
+        }
+        //else: continue running current event loop
+    }
+    catch ( ... )
+    {
+        // OnExceptionInMainLoop() threw, possibly rethrowing the same
+        // exception again. We have to deal with it here because we can't
+        // allow the exception to escape from the handling code, this will
+        // result in a crash at best (e.g. when using wxGTK as C++
+        // exceptions can't propagate through the C GTK+ code and corrupt
+        // the stack) and in something even more weird at worst (like
+        // exceptions completely disappearing into the void under some
+        // 64 bit versions of Windows).
+        if ( loop && !loop->IsYielding() )
+            loop->Exit();
+
+        // Give the application one last possibility to store the exception
+        // for rethrowing it later, when we get back to our code.
+        bool stored = false;
         try
         {
-            if ( !wxTheApp || !wxTheApp->OnExceptionInMainLoop() )
-            {
-                if ( loop )
-                    loop->Exit();
-            }
-            //else: continue running current event loop
+            if ( wxTheApp )
+                stored = wxTheApp->StoreCurrentException();
         }
         catch ( ... )
         {
-            // OnExceptionInMainLoop() threw, possibly rethrowing the same
-            // exception again. We have to deal with it here because we can't
-            // allow the exception to escape from the handling code, this will
-            // result in a crash at best (e.g. when using wxGTK as C++
-            // exceptions can't propagate through the C GTK+ code and corrupt
-            // the stack) and in something even more weird at worst (like
-            // exceptions completely disappearing into the void under some
-            // 64 bit versions of Windows).
-            if ( loop && !loop->IsYielding() )
-                loop->Exit();
+            // StoreCurrentException() really shouldn't throw, but if it
+            // did, take it as an indication that it didn't store it.
+        }
 
-            // Give the application one last possibility to store the exception
-            // for rethrowing it later, when we get back to our code.
-            bool stored = false;
+        // If it didn't take it, just abort, at least like this we behave
+        // consistently everywhere.
+        if ( !stored )
+        {
             try
             {
                 if ( wxTheApp )
-                    stored = wxTheApp->StoreCurrentException();
+                    wxTheApp->OnUnhandledException();
             }
             catch ( ... )
             {
-                // StoreCurrentException() really shouldn't throw, but if it
-                // did, take it as an indication that it didn't store it.
+                // And OnUnhandledException() absolutely shouldn't throw,
+                // but we still must account for the possibility that it
+                // did. At least show some information about the exception
+                // in this case.
+                wxTheApp->wxAppConsoleBase::OnUnhandledException();
             }
 
-            // If it didn't take it, just abort, at least like this we behave
-            // consistently everywhere.
-            if ( !stored )
-            {
-                try
-                {
-                    if ( wxTheApp )
-                        wxTheApp->OnUnhandledException();
-                }
-                catch ( ... )
-                {
-                    // And OnUnhandledException() absolutely shouldn't throw,
-                    // but we still must account for the possibility that it
-                    // did. At least show some information about the exception
-                    // in this case.
-                    wxTheApp->wxAppConsoleBase::OnUnhandledException();
-                }
-
-                wxAbort();
-            }
+            wxAbort();
         }
     }
-
-    return false;
-#endif // wxUSE_EXCEPTIONS
 }
+
+#endif // wxUSE_EXCEPTIONS
 
 bool wxEvtHandler::SearchEventTable(wxEventTable& table, wxEvent& event)
 {
@@ -1695,11 +1702,20 @@ void wxEvtHandler::DoBind(int id,
     wxDynamicEventTableEntry *entry =
         new wxDynamicEventTableEntry(eventType, id, lastId, func, userData);
 
-    if (!m_dynamicEvents)
-        m_dynamicEvents = new wxList;
+    // Check if the derived class allows binding such event handlers.
+    if ( !OnDynamicBind(*entry) )
+    {
+        delete entry;
+        return;
+    }
 
-    // Insert at the front of the list so most recent additions are found first
-    m_dynamicEvents->Insert( (wxObject*) entry );
+    if (!m_dynamicEvents)
+        m_dynamicEvents = new DynamicEvents;
+
+    // We prefer to push back the entry here and then iterate over the vector
+    // in reverse direction in GetNextDynamicEntry() as it's more efficient
+    // than inserting the element at the front.
+    m_dynamicEvents->push_back(entry);
 
     // Make sure we get to know when a sink is destroyed
     wxEvtHandler *eventSink = func->GetEvtHandler();
@@ -1723,11 +1739,11 @@ wxEvtHandler::DoUnbind(int id,
     if (!m_dynamicEvents)
         return false;
 
-    wxList::compatibility_iterator node = m_dynamicEvents->GetFirst();
-    while (node)
+    size_t cookie;
+    for ( wxDynamicEventTableEntry* entry = GetFirstDynamicEntry(cookie);
+          entry;
+          entry = GetNextDynamicEntry(cookie) )
     {
-        wxDynamicEventTableEntry *entry = (wxDynamicEventTableEntry*)node->GetData();
-
         if ((entry->m_id == id) &&
             ((entry->m_lastId == lastId) || (lastId == wxID_ANY)) &&
             ((entry->m_eventType == eventType) || (eventType == wxEVT_NULL)) &&
@@ -1744,13 +1760,50 @@ wxEvtHandler::DoUnbind(int id,
             }
 
             delete entry->m_callbackUserData;
-            m_dynamicEvents->Erase( node );
+
+            // We can't delete the entry from the vector if we're currently
+            // iterating over it. As we don't know whether we're or not, just
+            // null it for now and we will really erase it when we do finish
+            // iterating over it the next time.
+            //
+            // Notice that we rely on "cookie" being just the index into the
+            // vector, which is not guaranteed by our API, but here we can use
+            // this implementation detail.
+            (*m_dynamicEvents)[cookie] = NULL;
+
             delete entry;
             return true;
         }
-        node = node->GetNext();
     }
     return false;
+}
+
+wxDynamicEventTableEntry*
+wxEvtHandler::GetFirstDynamicEntry(size_t& cookie) const
+{
+    if ( !m_dynamicEvents )
+        return NULL;
+
+    // The handlers are in LIFO order, so we must start at the end.
+    cookie = m_dynamicEvents->size();
+    return GetNextDynamicEntry(cookie);
+}
+
+wxDynamicEventTableEntry*
+wxEvtHandler::GetNextDynamicEntry(size_t& cookie) const
+{
+    // On entry here cookie is one greater than the index of the entry to
+    // return, so if it is 0, it means that there are no more entries.
+    while ( cookie )
+    {
+        // Otherwise return the element at the previous index, skipping any
+        // null elements which indicate removed entries.
+        wxDynamicEventTableEntry* const entry = m_dynamicEvents->at(--cookie);
+        if ( entry )
+            return entry;
+    }
+
+    return NULL;
 }
 
 bool wxEvtHandler::SearchDynamicEventTable( wxEvent& event )
@@ -1758,14 +1811,26 @@ bool wxEvtHandler::SearchDynamicEventTable( wxEvent& event )
     wxCHECK_MSG( m_dynamicEvents, false,
                  wxT("caller should check that we have dynamic events") );
 
-    wxList::compatibility_iterator node = m_dynamicEvents->GetFirst();
-    while (node)
-    {
-        wxDynamicEventTableEntry *entry = (wxDynamicEventTableEntry*)node->GetData();
+    DynamicEvents& dynamicEvents = *m_dynamicEvents;
 
-        // get next node before (maybe) calling the event handler as it could
-        // call Disconnect() invalidating the current node
-        node = node->GetNext();
+    bool needToPruneDeleted = false;
+
+    // We can't use Get{First,Next}DynamicEntry() here as they hide the deleted
+    // but not yet pruned entries from the caller, but here we do want to know
+    // about them, so iterate directly. Remember to do it in the reverse order
+    // to honour the order of handlers connection.
+    for ( size_t n = dynamicEvents.size(); n; n-- )
+    {
+        wxDynamicEventTableEntry* const entry = dynamicEvents[n - 1];
+
+        if ( !entry )
+        {
+            // This entry must have been unbound at some time in the past, so
+            // skip it now and really remove it from the vector below, once we
+            // finish iterating.
+            needToPruneDeleted = true;
+            continue;
+        }
 
         if ( event.GetEventType() == entry->m_eventType )
         {
@@ -1773,8 +1838,36 @@ bool wxEvtHandler::SearchDynamicEventTable( wxEvent& event )
             if ( !handler )
                handler = this;
             if ( ProcessEventIfMatchesId(*entry, handler, event) )
+            {
+                // It's important to skip pruning of the unbound event entries
+                // below because this object itself could have been deleted by
+                // the event handler making m_dynamicEvents a dangling pointer
+                // which can't be accessed any longer in the code below.
+                //
+                // In practice, it hopefully shouldn't be a problem to wait
+                // until we get an event that we don't handle before pruning
+                // because this should happen soon enough and even if it
+                // doesn't the worst possible outcome is slightly increased
+                // memory consumption while not skipping pruning can result in
+                // hard to reproduce (because they require the disconnection
+                // and deletion happen at the same time which is not always the
+                // case) crashes.
                 return true;
+            }
         }
+    }
+
+    if ( needToPruneDeleted )
+    {
+        size_t nNew = 0;
+        for ( size_t n = 0; n != dynamicEvents.size(); n++ )
+        {
+            if ( dynamicEvents[n] )
+                dynamicEvents[nNew++] = dynamicEvents[n];
+        }
+
+        wxASSERT( nNew != dynamicEvents.size() );
+        dynamicEvents.resize(nNew);
     }
 
     return false;
@@ -1844,19 +1937,20 @@ void wxEvtHandler::OnSinkDestroyed( wxEvtHandler *sink )
     wxASSERT(m_dynamicEvents);
 
     // remove all connections with this sink
-    wxList::compatibility_iterator node = m_dynamicEvents->GetFirst(), node_nxt;
-    while (node)
+    size_t cookie;
+    for ( wxDynamicEventTableEntry* entry = GetFirstDynamicEntry(cookie);
+          entry;
+          entry = GetNextDynamicEntry(cookie) )
     {
-        wxDynamicEventTableEntry *entry = (wxDynamicEventTableEntry*)node->GetData();
-        node_nxt = node->GetNext();
-
         if ( entry->m_fn->GetEvtHandler() == sink )
         {
             delete entry->m_callbackUserData;
-            m_dynamicEvents->Erase( node );
             delete entry;
+
+            // Just as in DoUnbind(), we use our knowledge of
+            // GetNextDynamicEntry() implementation here.
+            (*m_dynamicEvents)[cookie] = NULL;
         }
-        node = node_nxt;
     }
 }
 

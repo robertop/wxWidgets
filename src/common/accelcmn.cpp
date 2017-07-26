@@ -38,6 +38,8 @@ wxAcceleratorTable wxNullAcceleratorTable;
 // wxAcceleratorEntry implementation
 // ============================================================================
 
+wxGCC_WARNING_SUPPRESS(missing-field-initializers)
+
 static const struct wxKeyName
 {
     wxKeyCode code;
@@ -111,6 +113,8 @@ static const struct wxKeyName
     { WXK_WINDOWS_MENU,     /*TRANSLATORS: Name of keyboard key*/ wxTRANSLATE("Windows_Menu") },
     { WXK_COMMAND,          /*TRANSLATORS: Name of keyboard key*/ wxTRANSLATE("Command") },
 };
+
+wxGCC_WARNING_RESTORE(missing-field-initializers)
 
 // return true if the 2 strings refer to the same accel
 //
@@ -228,12 +232,18 @@ wxAcceleratorEntry::ParseAccel(const wxString& text, int *flagsOut, int *keyOut)
             // it's just a letter
             keyCode = current[0U];
 
-            // if the key is used with any modifiers, make it an uppercase one
-            // because Ctrl-A and Ctrl-a are the same; but keep it as is if it's
-            // used alone as 'a' and 'A' are different
-            if ( accelFlags != wxACCEL_NORMAL )
-                keyCode = wxToupper(keyCode);
-            break;
+            // ...or maybe not. A translation may be single character too (e.g.
+            // Chinese), but if it's a Latin character, that's unlikely
+            if ( keyCode < 128 )
+            {
+                // if the key is used with any modifiers, make it an uppercase one
+                // because Ctrl-A and Ctrl-a are the same; but keep it as is if it's
+                // used alone as 'a' and 'A' are different
+                if ( accelFlags != wxACCEL_NORMAL )
+                    keyCode = wxToupper(keyCode);
+                break;
+            }
+            wxFALLTHROUGH;
 
         default:
             keyCode = IsNumberedAccelKey(current, wxTRANSLATE("F"),

@@ -64,7 +64,7 @@ public:
     int GetIndex() const
         { return m_parent->GetItemIndex(const_cast<wxListBoxItem*>(this)); }
 
-    wxString GetName() const
+    wxString GetName() const wxOVERRIDE
         { return m_parent->GetString(GetIndex()); }
 
 private:
@@ -177,7 +177,7 @@ WXDWORD wxListBox::MSWGetStyle(long style, WXDWORD *exstyle) const
     if ( m_windowStyle & wxLB_SORT )
         msStyle |= LBS_SORT;
 
-#if wxUSE_OWNER_DRAWN && !defined(__WXWINCE__)
+#if wxUSE_OWNER_DRAWN
     if ( m_windowStyle & wxLB_OWNERDRAW )
     {
         // we don't support LBS_OWNERDRAWVARIABLE yet and we also always put
@@ -251,6 +251,22 @@ void wxListBox::EnsureVisible(int n)
 
     // make the item the last visible item by setting the first visible item accordingly
     DoSetFirstItem(n - countVisible + 1);
+}
+
+int wxListBox::GetTopItem() const
+{
+    return SendMessage(GetHwnd(), LB_GETTOPINDEX, 0, 0);
+}
+
+int wxListBox::GetCountPerPage() const
+{
+    const LRESULT lineHeight = SendMessage(GetHwnd(), LB_GETITEMHEIGHT, 0, 0);
+    if ( lineHeight == LB_ERR || lineHeight == 0 )
+        return -1;
+
+    const RECT r = wxGetClientRect(GetHwnd());
+
+    return (r.bottom - r.top) / lineHeight;
 }
 
 void wxListBox::DoSetFirstItem(int N)
@@ -600,7 +616,7 @@ wxSize wxListBox::DoGetBestClientSize() const
     // give it some reasonable default value if there are no strings in the
     // list
     if ( wListbox == 0 )
-        wListbox = 100;
+        wListbox = 6*GetCharWidth();
 
     // the listbox should be slightly larger than the widest string
     wListbox += 3*GetCharWidth();
@@ -742,11 +758,7 @@ bool wxListBox::MSWOnMeasure(WXMEASUREITEMSTRUCT *item)
 
     MEASUREITEMSTRUCT *pStruct = (MEASUREITEMSTRUCT *)item;
 
-#ifdef __WXWINCE__
-    HDC hdc = GetDC(NULL);
-#else
     HDC hdc = CreateIC(wxT("DISPLAY"), NULL, NULL, 0);
-#endif
 
     {
         wxDCTemp dc((WXHDC)hdc);
@@ -756,11 +768,7 @@ bool wxListBox::MSWOnMeasure(WXMEASUREITEMSTRUCT *item)
         pStruct->itemWidth  = dc.GetCharWidth();
     }
 
-#ifdef __WXWINCE__
-    ReleaseDC(NULL, hdc);
-#else
     DeleteDC(hdc);
-#endif
 
     return true;
 }
@@ -777,7 +785,7 @@ bool wxListBox::MSWOnDraw(WXDRAWITEMSTRUCT *item)
     if ( pStruct->itemID == (UINT)-1 )
         return false;
 
-    wxListBoxItem *pItem = (wxListBoxItem *)m_aItems[pStruct->itemID];
+    wxOwnerDrawn *pItem = m_aItems[pStruct->itemID];
 
     wxDCTemp dc((WXHDC)pStruct->hDC);
 

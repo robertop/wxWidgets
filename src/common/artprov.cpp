@@ -212,6 +212,32 @@ wxArtProvider::~wxArtProvider()
 // wxArtProvider: retrieving bitmaps/icons
 // ----------------------------------------------------------------------------
 
+void wxArtProvider::RescaleBitmap(wxBitmap& bmp, const wxSize& sizeNeeded)
+{
+    wxCHECK_RET( sizeNeeded.IsFullySpecified(), wxS("New size must be given") );
+
+#if wxUSE_IMAGE
+    wxImage img = bmp.ConvertToImage();
+    img.Rescale(sizeNeeded.x, sizeNeeded.y);
+    bmp = wxBitmap(img);
+#else // !wxUSE_IMAGE
+    // Fallback method of scaling the bitmap
+    wxBitmap newBmp(sizeNeeded, bmp.GetDepth());
+#if defined(__WXMSW__) || defined(__WXOSX__)
+    // wxBitmap::UseAlpha() is used only on wxMSW and wxOSX.
+    newBmp.UseAlpha(bmp.HasAlpha());
+#endif // __WXMSW__ || __WXOSX__
+    {
+        wxMemoryDC dc(newBmp);
+        double scX = (double)sizeNeeded.GetWidth() / bmp.GetWidth();
+        double scY = (double)sizeNeeded.GetHeight() / bmp.GetHeight();
+        dc.SetUserScale(scX, scY);
+        dc.DrawBitmap(bmp, 0, 0);
+    }
+    bmp = newBmp;
+#endif // wxUSE_IMAGE/!wxUSE_IMAGE
+}
+
 /*static*/ wxBitmap wxArtProvider::GetBitmap(const wxArtID& id,
                                              const wxArtClient& client,
                                              const wxSize& size)
@@ -256,17 +282,13 @@ wxArtProvider::~wxArtProvider()
         }
 
         // if we didn't get the correct size, resize the bitmap
-#if wxUSE_IMAGE && (!defined(__WXMSW__) || wxUSE_WXDIB)
         if ( bmp.IsOk() && sizeNeeded != wxDefaultSize )
         {
             if ( bmp.GetSize() != sizeNeeded )
             {
-                wxImage img = bmp.ConvertToImage();
-                img.Rescale(sizeNeeded.x, sizeNeeded.y);
-                bmp = wxBitmap(img);
+                RescaleBitmap(bmp, sizeNeeded);
             }
         }
-#endif // wxUSE_IMAGE
 
         sm_cache->PutBitmap(hashId, bmp);
     }

@@ -45,7 +45,7 @@
 #include "wx/propgrid/manager.h"
 
 
-#define wxPG_MAN_ALTERNATE_BASE_ID          11249 // Needed for wxID_ANY madnesss
+#define wxPG_MAN_ALTERNATE_BASE_ID          11249 // Needed for wxID_ANY madness
 
 
 // -----------------------------------------------------------------------
@@ -652,7 +652,7 @@ bool wxPropertyGridManager::SetFont( const wxFont& font )
     bool res = wxWindow::SetFont(font);
     m_pPropGrid->SetFont(font);
 
-    // TODO: Need to do caption recacalculations for other pages as well.
+    // TODO: Need to do caption recalculations for other pages as well.
     for ( unsigned int i = 0; i < m_arrPages.size(); i++ )
     {
         wxPropertyGridPage* page = GetPage(i);
@@ -862,8 +862,7 @@ void wxPropertyGridManager::Clear()
 
     m_pPropGrid->Freeze();
 
-    int i;
-    for ( i=(int)GetPageCount()-1; i>=0; i-- )
+    for ( int i=(int)GetPageCount()-1; i>=0; i-- )
         RemovePage(i);
 
     m_pPropGrid->Thaw();
@@ -1016,7 +1015,7 @@ wxPropertyGridPage* wxPropertyGridManager::InsertPage( int index,
 
             wxToolBarToolBase* tool;
 
-            if ( &bmp != &wxNullBitmap )
+            if ( bmp.IsOk() )
                 tool = m_pToolbar->AddTool(wxID_ANY, label, bmp,
                                            label, wxITEM_RADIO);
             else
@@ -1078,9 +1077,13 @@ bool wxPropertyGridManager::IsAnyModified() const
 
 bool wxPropertyGridManager::IsPageModified( size_t index ) const
 {
-    if ( m_arrPages[index]->GetStatePtr()->m_anyModified )
-        return true;
-    return false;
+    wxCHECK_MSG( index < GetPageCount(), false, wxS("Invalid page index") );
+
+#if WXWIN_COMPATIBILITY_3_0
+    return m_arrPages[index]->GetStatePtr()->m_anyModified != (unsigned char)false;
+#else
+    return m_arrPages[index]->GetStatePtr()->m_anyModified;
+#endif
 }
 
 // -----------------------------------------------------------------------
@@ -1200,10 +1203,10 @@ bool wxPropertyGridManager::RemovePage( int page )
 
 bool wxPropertyGridManager::ProcessEvent( wxEvent& event )
 {
-    int evtType = event.GetEventType();
+    const wxEventType evtType = event.GetEventType();
 
     // NB: For some reason, under wxPython, Connect in Init doesn't work properly,
-    //     so we'll need to call OnPropertyGridSelect manually. Multiple call's
+    //     so we'll need to call OnPropertyGridSelect manually. Multiple calls
     //     don't really matter.
     if ( evtType == wxEVT_PG_SELECTED )
         OnPropertyGridSelect((wxPropertyGridEvent&)event);
@@ -1314,7 +1317,7 @@ void wxPropertyGridManager::RecalculatePositions( int width, int height )
 #if wxUSE_TOOLBAR
     if ( m_pToolbar )
     {
-        m_pToolbar->SetSize(0, 0, width, -1);
+        m_pToolbar->SetSize(0, 0, width, wxDefaultCoord);
         propgridY += m_pToolbar->GetSize().y;
 
         if ( HasExtraStyle(wxPG_EX_TOOLBAR_SEPARATOR) )
@@ -1326,7 +1329,7 @@ void wxPropertyGridManager::RecalculatePositions( int width, int height )
 #if wxUSE_HEADERCTRL
     if ( m_showHeader )
     {
-        m_pHeaderCtrl->SetSize(0, propgridY, width, -1);
+        m_pHeaderCtrl->SetSize(0, propgridY, width, wxDefaultCoord);
         propgridY += m_pHeaderCtrl->GetSize().y;
     }
 #endif
@@ -1410,6 +1413,7 @@ void wxPropertyGridManager::OnPaint( wxPaintEvent& WXUNUSED(event) )
 
     if ( HasExtraStyle(wxPG_EX_TOOLBAR_SEPARATOR) )
     {
+#if wxUSE_TOOLBAR
         if (m_pToolbar && m_pPropGrid)
         {
             wxPen marginPen(m_pPropGrid->GetMarginColour());
@@ -1418,6 +1422,7 @@ void wxPropertyGridManager::OnPaint( wxPaintEvent& WXUNUSED(event) )
             int y = m_pPropGrid->GetPosition().y-1;
             dc.DrawLine(0, y, GetClientSize().x, y);
         }
+#endif // wxUSE_TOOLBAR
     }
 
     // Repaint splitter and any other description box decorations
@@ -1828,8 +1833,8 @@ void wxPropertyGridManager::SetDescription( const wxString& label, const wxStrin
         m_pTxtHelpCaption->SetLabel(label);
         m_pTxtHelpContent->SetLabel(content);
 
-        m_pTxtHelpCaption->SetSize(-1,osz1.y);
-        m_pTxtHelpContent->SetSize(-1,osz2.y);
+        m_pTxtHelpCaption->SetSize(wxDefaultCoord, osz1.y);
+        m_pTxtHelpContent->SetSize(wxDefaultCoord, osz2.y);
 
         UpdateDescriptionBox( m_splitterY, m_width, m_height );
     }
@@ -2069,7 +2074,7 @@ void wxPropertyGridManager::OnMouseClick( wxMouseEvent &event )
         if ( m_dragStatus == 0 )
         {
             //
-            // Begin draggin the splitter
+            // Begin dragging the splitter
             //
 
             BEGIN_MOUSE_CAPTURE

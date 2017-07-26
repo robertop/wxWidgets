@@ -35,10 +35,6 @@
 #include "wx/msw/missing.h" // for SM_CXCURSOR, SM_CYCURSOR, SM_TABLETPC
 #include "wx/msw/private/metrics.h"
 
-#ifndef SPI_GETFLATMENU
-#define SPI_GETFLATMENU                     0x1022
-#endif
-
 #include "wx/fontutil.h"
 #include "wx/fontenum.h"
 
@@ -51,8 +47,8 @@
 class wxSystemSettingsModule : public wxModule
 {
 public:
-    virtual bool OnInit();
-    virtual void OnExit();
+    virtual bool OnInit() wxOVERRIDE;
+    virtual void OnExit() wxOVERRIDE;
 
 private:
     wxDECLARE_DYNAMIC_CLASS(wxSystemSettingsModule);
@@ -75,7 +71,7 @@ static wxFont *gs_fontDefault = NULL;
 // from GetSystemMetric, and should it? Perhaps call it GetSystemParameter
 // and pass an optional void* arg to get further info.
 // Should also have SetSystemParameter.
-// Also implement WM_WININICHANGE (NT) / WM_SETTINGCHANGE (Win95)
+// Also implement WM_WININICHANGE
 
 // ----------------------------------------------------------------------------
 // wxSystemSettingsModule
@@ -132,10 +128,6 @@ wxColour wxSystemSettingsNative::GetColour(wxSystemColour index)
         }
     }
 
-#ifdef __WXWINCE__
-    index |= SYS_COLOR_INDEX_FLAG;
-#endif
-
     COLORREF colSys = ::GetSysColor(index);
 
     wxColour ret = wxRGBToColour(colSys);
@@ -159,14 +151,7 @@ wxFont wxCreateFontFromStockObject(int index)
         {
             wxNativeFontInfo info;
             info.lf = lf;
-            // Under MicroWindows we pass the HFONT as well
-            // because it's hard to convert HFONT -> LOGFONT -> HFONT
-            // It's OK to delete stock objects, the delete will be ignored.
-#ifdef __WXMICROWIN__
-            font.Create(info, (WXHFONT) hFont);
-#else
             font.Create(info);
-#endif
         }
         else
         {
@@ -183,19 +168,6 @@ wxFont wxCreateFontFromStockObject(int index)
 
 wxFont wxSystemSettingsNative::GetFont(wxSystemFont index)
 {
-#ifdef __WXWINCE__
-    // under CE only a single SYSTEM_FONT exists
-    index;
-
-    if ( !gs_fontDefault )
-    {
-        gs_fontDefault = new wxFont(wxCreateFontFromStockObject(SYSTEM_FONT));
-    }
-
-    wxASSERT(gs_fontDefault->IsOk() &&
-             wxFontEnumerator::IsValidFacename(gs_fontDefault->GetFaceName()));
-    return *gs_fontDefault;
-#else // !__WXWINCE__
     // wxWindow ctor calls GetFont(wxSYS_DEFAULT_GUI_FONT) so we're
     // called fairly often -- this is why we cache this particular font
     if ( index == wxSYS_DEFAULT_GUI_FONT )
@@ -227,7 +199,6 @@ wxFont wxSystemSettingsNative::GetFont(wxSystemFont index)
 #endif // wxUSE_FONTENUM
 
     return font;
-#endif // __WXWINCE__/!__WXWINCE__
 }
 
 // ----------------------------------------------------------------------------
@@ -244,101 +215,51 @@ wxFont wxSystemSettingsNative::GetFont(wxSystemFont index)
 static const int gs_metricsMap[] =
 {
     -1,  // wxSystemMetric enums start at 1, so give a dummy value for pos 0.
-#if defined(__WIN32__) && !defined(__WXWINCE__)
     SM_CMOUSEBUTTONS,
-#else
-    -1,
-#endif
 
     SM_CXBORDER,
     SM_CYBORDER,
-#ifdef SM_CXCURSOR
     SM_CXCURSOR,
     SM_CYCURSOR,
-#else
-    -1, -1,
-#endif
     SM_CXDOUBLECLK,
     SM_CYDOUBLECLK,
-#if defined(__WIN32__) && defined(SM_CXDRAG)
     SM_CXDRAG,
     SM_CYDRAG,
     SM_CXEDGE,
     SM_CYEDGE,
-#else
-    -1, -1, -1, -1,
-#endif
     SM_CXHSCROLL,
     SM_CYHSCROLL,
-#ifdef SM_CXHTHUMB
     SM_CXHTHUMB,
-#else
-    -1,
-#endif
     SM_CXICON,
     SM_CYICON,
     SM_CXICONSPACING,
     SM_CYICONSPACING,
-#ifdef SM_CXHTHUMB
     SM_CXMIN,
     SM_CYMIN,
-#else
-    -1, -1,
-#endif
     SM_CXSCREEN,
     SM_CYSCREEN,
 
-#if defined(__WIN32__) && defined(SM_CXSIZEFRAME)
     SM_CXSIZEFRAME,
     SM_CYSIZEFRAME,
     SM_CXSMICON,
     SM_CYSMICON,
-#else
-    -1, -1, -1, -1,
-#endif
     SM_CYHSCROLL,
     SM_CXHSCROLL,
     SM_CXVSCROLL,
     SM_CYVSCROLL,
-#ifdef SM_CYVTHUMB
     SM_CYVTHUMB,
-#else
-    -1,
-#endif
     SM_CYCAPTION,
     SM_CYMENU,
-#if defined(__WIN32__) && defined(SM_NETWORK)
     SM_NETWORK,
-#else
-    -1,
-#endif
-#ifdef SM_PENWINDOWS
     SM_PENWINDOWS,
-#else
-    -1,
-#endif
-#if defined(__WIN32__) && defined(SM_SHOWSOUNDS)
     SM_SHOWSOUNDS,
-#else
-    -1,
-#endif
-    // SM_SWAPBUTTON is not available under CE and it doesn't make sense to ask
-    // for it there
-#ifdef SM_SWAPBUTTON
     SM_SWAPBUTTON,
-#else
-    -1,
-#endif
     -1   // wxSYS_DCLICK_MSEC - not available as system metric
 };
 
 // Get a system metric, e.g. scrollbar size
 int wxSystemSettingsNative::GetMetric(wxSystemMetric index, wxWindow* WXUNUSED(win))
 {
-#ifdef __WXMICROWIN__
-    // TODO: probably use wxUniv themes functionality
-    return 0;
-#else // !__WXMICROWIN__
     wxCHECK_MSG( index > 0 && (size_t)index < WXSIZEOF(gs_metricsMap), 0,
                  wxT("invalid metric") );
 
@@ -363,7 +284,6 @@ int wxSystemSettingsNative::GetMetric(wxSystemMetric index, wxWindow* WXUNUSED(w
     }
 
     return rc;
-#endif // __WXMICROWIN__/!__WXMICROWIN__
 }
 
 bool wxSystemSettingsNative::HasFeature(wxSystemFeature index)
@@ -392,7 +312,6 @@ bool wxSystemSettingsNative::HasFeature(wxSystemFeature index)
 
 extern wxFont wxGetCCDefaultFont()
 {
-#ifndef __WXWINCE__
     // the default font used for the common controls seems to be the desktop
     // font which is also used for the icon titles and not the stock default
     // GUI font
@@ -411,7 +330,6 @@ extern wxFont wxGetCCDefaultFont()
     {
         wxLogLastError(wxT("SystemParametersInfo(SPI_GETICONTITLELOGFONT"));
     }
-#endif // __WXWINCE__
 
     // fall back to the default font for the normal controls
     return wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);

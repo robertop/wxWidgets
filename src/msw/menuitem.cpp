@@ -47,15 +47,7 @@
 
 #include "wx/msw/private.h"
 #include "wx/msw/dc.h"
-
-#ifdef __WXWINCE__
-// Implemented in menu.cpp
-UINT GetMenuState(HMENU hMenu, UINT id, UINT flags) ;
-#endif
-
-#if wxUSE_UXTHEME
-    #include "wx/msw/uxtheme.h"
-#endif
+#include "wx/msw/uxtheme.h"
 
 // ---------------------------------------------------------------------------
 // macro
@@ -150,10 +142,6 @@ inline bool IsGreaterThanStdSize(const wxBitmap& bmp)
 
 #include "wx/fontutil.h"
 #include "wx/msw/private/metrics.h"
-
-#ifndef SPI_GETKEYBOARDCUES
-#define SPI_GETKEYBOARDCUES 0x100A
-#endif
 
 #if wxUSE_UXTHEME
 
@@ -615,7 +603,6 @@ void wxMenuItem::Check(bool check)
                 return;
             }
 
-#ifdef __WIN32__
             // calling CheckMenuRadioItem() with such parameters hangs my system
             // (NT4 SP6) and I suspect this could happen to the others as well,
             // so don't do it!
@@ -630,7 +617,6 @@ void wxMenuItem::Check(bool check)
             {
                 wxLogLastError(wxT("CheckMenuRadioItem"));
             }
-#endif // __WIN32__
 
             // also uncheck all the other items in this radio group
             wxMenuItemList::compatibility_iterator node = items.Item(start);
@@ -955,7 +941,8 @@ bool wxMenuItem::OnDrawItem(wxDC& dc, const wxRect& rc,
         data->SeparatorMargin.ApplyTo(rcSeparator);
 
         RECT rcGutter = rcSelection;
-        rcGutter.right = data->ItemMargin.cxLeftWidth
+        rcGutter.right = rcGutter.left
+                       + data->ItemMargin.cxLeftWidth
                        + data->CheckBgMargin.cxLeftWidth
                        + data->CheckMargin.cxLeftWidth
                        + imgWidth
@@ -1076,13 +1063,13 @@ bool wxMenuItem::OnDrawItem(wxDC& dc, const wxRect& rc,
             SIZE accelSize;
             ::GetTextExtentPoint32(hdc, accel.c_str(), accel.length(), &accelSize);
 
-            int flags = DST_TEXT;
+            flags = DST_TEXT;
             // themes menu is using specified color for disabled labels
             if ( data->MenuLayout() == MenuDrawData::Classic &&
                  (stat & wxODDisabled) && !(stat & wxODSelected) )
                 flags |= DSS_DISABLED;
 
-            int x = rcText.right - data->ArrowMargin.GetTotalX()
+            x = rcText.right - data->ArrowMargin.GetTotalX()
                                  - data->ArrowSize.cx
                                  - data->ArrowBorder;
 
@@ -1092,7 +1079,7 @@ bool wxMenuItem::OnDrawItem(wxDC& dc, const wxRect& rc,
             else
                 x -= m_parentMenu->GetMaxAccelWidth();
 
-            int y = rcText.top + (rcText.bottom - rcText.top - accelSize.cy) / 2;
+            y = rcText.top + (rcText.bottom - rcText.top - accelSize.cy) / 2;
 
             ::DrawState(hdc, NULL, NULL, wxMSW_CONV_LPARAM(accel),
                         accel.length(), x, y, 0, 0, flags);
@@ -1332,14 +1319,10 @@ void wxMenuItem::GetColourToUse(wxODStatus stat, wxColour& colText, wxColour& co
 
 bool wxMenuItem::MSWMustUseOwnerDrawn()
 {
-    // MIIM_BITMAP only works under WinME/2000+ so we always use owner
-    // drawn item under the previous versions and we also have to use
-    // them in any case if the item has custom colours or font
-    static const wxWinVersion winver = wxGetWinVersion();
-    bool mustUseOwnerDrawn = winver < wxWinVersion_98 ||
-                                GetTextColour().IsOk() ||
-                                GetBackgroundColour().IsOk() ||
-                                GetFont().IsOk();
+    // we have to use owner drawn item if it has custom colours or font
+    bool mustUseOwnerDrawn = GetTextColour().IsOk() ||
+                             GetBackgroundColour().IsOk() ||
+                             GetFont().IsOk();
 
     // Windows XP or earlier don't display menu bitmaps bigger than
     // standard size correctly (they're truncated) nor can
@@ -1348,6 +1331,7 @@ bool wxMenuItem::MSWMustUseOwnerDrawn()
     // doesn't seem to have any problems with even very large bitmaps
     // so don't use owner-drawn items unnecessarily there (Vista wasn't
     // actually tested but I assume it works as 7 rather than as XP).
+    static const wxWinVersion winver = wxGetWinVersion();
     if ( !mustUseOwnerDrawn && winver < wxWinVersion_Vista )
     {
         const wxBitmap& bmpUnchecked = GetBitmap(false),
@@ -1410,7 +1394,7 @@ int wxMenuItem::MSGetMenuItemPos() const
     if ( !hMenu )
         return -1;
 
-    const UINT id = GetMSWId();
+    const WXWPARAM id = GetMSWId();
     const int menuItems = ::GetMenuItemCount(hMenu);
     for ( int i = 0; i < menuItems; i++ )
     {

@@ -79,27 +79,9 @@
 
 using namespace wxMSWImpl;
 
-#ifndef AC_SRC_ALPHA
-    #define AC_SRC_ALPHA 1
-#endif
-
-#ifndef LAYOUT_RTL
-    #define LAYOUT_RTL 1
-#endif
-
 /* Quaternary raster codes */
 #ifndef MAKEROP4
 #define MAKEROP4(fore,back) (DWORD)((((back) << 8) & 0xFF000000) | (fore))
-#endif
-
-// apparently with MicroWindows it is possible that HDC is 0 so we have to
-// check for this ourselves
-#ifdef __WXMICROWIN__
-    #define WXMICROWIN_CHECK_HDC if ( !GetHDC() ) return;
-    #define WXMICROWIN_CHECK_HDC_RET(x) if ( !GetHDC() ) return x;
-#else
-    #define WXMICROWIN_CHECK_HDC
-    #define WXMICROWIN_CHECK_HDC_RET(x)
 #endif
 
 wxIMPLEMENT_ABSTRACT_CLASS(wxMSWDCImpl, wxDCImpl);
@@ -127,17 +109,10 @@ static const int VIEWPORT_EXTENT = 134217727;
    coordinates used.
  */
 
-#ifdef __WXWINCE__
-    #define XLOG2DEV(x) ((x-m_logicalOriginX)*m_signX)
-    #define YLOG2DEV(y) ((y-m_logicalOriginY)*m_signY)
-    #define XDEV2LOG(x) ((x)*m_signX+m_logicalOriginX)
-    #define YDEV2LOG(y) ((y)*m_signY+m_logicalOriginY)
-#else
-    #define XLOG2DEV(x) (x)
-    #define YLOG2DEV(y) (y)
-    #define XDEV2LOG(x) (x)
-    #define YDEV2LOG(y) (y)
-#endif
+#define XLOG2DEV(x) (x)
+#define YLOG2DEV(y) (y)
+#define XDEV2LOG(x) (x)
+#define YDEV2LOG(y) (y)
 
 // ---------------------------------------------------------------------------
 // private functions
@@ -192,6 +167,33 @@ private:
 };
 
 static wxOnceOnlyDLLLoader wxMSIMG32DLL(wxT("msimg32"));
+static wxOnceOnlyDLLLoader wxGDI32DLL(wxT("gdi32.dll"));
+
+// Note that originally these function pointers were local static members within
+// functions, but we can't do that, because wxWidgets may be initialized,
+// uninitialized, and reinitialized within the same program, and our dynamically
+// loaded dll's may be unloaded and reloaded as part of that, almost certainly
+// ending up at different base addresses due to address space layout
+// randomization.
+#ifdef USE_DYNAMIC_GDI_FUNCS
+typedef BOOL (WINAPI *AlphaBlend_t)(HDC,int,int,int,int,
+                                    HDC,int,int,int,int,
+                                    BLENDFUNCTION);
+static AlphaBlend_t gs_pfnAlphaBlend = NULL;
+static bool gs_triedToLoadAlphaBlend = false;
+
+typedef BOOL (WINAPI *GradientFill_t)(HDC, PTRIVERTEX, ULONG, PVOID, ULONG, ULONG);
+static GradientFill_t gs_pfnGradientFill = NULL;
+static bool gs_triedToLoadGradientFill = false;
+
+typedef DWORD (WINAPI *GetLayout_t)(HDC);
+static GetLayout_t gs_pfnGetLayout = NULL;
+static bool gs_triedToLoadGetLayout = false;
+
+typedef DWORD (WINAPI *SetLayout_t)(HDC, DWORD);
+static SetLayout_t gs_pfnSetLayout = NULL;
+static bool gs_triedToLoadSetLayout = false;
+#endif // USE_DYNAMIC_GDI_FUNCS
 
 // we must ensure that DLLs are unloaded before the static objects cleanup time
 // because we may hit the notorious DllMain() dead lock in this case if wx is
@@ -200,8 +202,25 @@ static wxOnceOnlyDLLLoader wxMSIMG32DLL(wxT("msimg32"));
 class wxGDIDLLsCleanupModule : public wxModule
 {
 public:
-    virtual bool OnInit() { return true; }
-    virtual void OnExit() { wxMSIMG32DLL.Unload(); }
+    virtual bool OnInit() wxOVERRIDE { return true; }
+    virtual void OnExit() wxOVERRIDE
+    {
+        wxMSIMG32DLL.Unload();
+        wxGDI32DLL.Unload();
+#ifdef USE_DYNAMIC_GDI_FUNCS
+        gs_pfnGetLayout = NULL;
+        gs_triedToLoadGetLayout = false;
+
+        gs_pfnSetLayout = NULL;
+        gs_triedToLoadSetLayout = false;
+
+        gs_pfnAlphaBlend = NULL;
+        gs_triedToLoadAlphaBlend = false;
+
+        gs_pfnGradientFill = NULL;
+        gs_triedToLoadGradientFill = false;
+#endif // USE_DYNAMIC_GDI_FUNCS
+    }
 
 private:
     wxDECLARE_DYNAMIC_CLASS(wxGDIDLLsCleanupModule);
@@ -213,13 +232,6 @@ wxIMPLEMENT_DYNAMIC_CLASS(wxGDIDLLsCleanupModule, wxModule);
 
 #endif // USE_DYNAMIC_GDI_FUNCS
 
-// Namespace for the wrapper functions, hopefully one day we'll be able to get
-// rid of all of them and then it will be easy to find all occurrences of their
-// use by just searching for this namespace name.
-//
-// All of the functions in this namespace must work *exactly* like the standard
-// functions with the same name and just return an error if dynamically loading
-// them failed.
 namespace wxDynLoadWrappers
 {
 
@@ -229,11 +241,13 @@ namespace wxDynLoadWrappers
 // libgdi32.a import library (at least up to w32api 4.0.3).
 DWORD GetLayout(HDC hdc)
 {
-    typedef DWORD (WINAPI *GetLayout_t)(HDC);
-    static GetLayout_t
-        wxDL_INIT_FUNC(s_pfn, GetLayout, wxDynamicLibrary(wxT("gdi32.dll")));
+    if ( !gs_triedToLoadGetLayout )
+    {
+        gs_pfnGetLayout = (GetLayout_t)wxGDI32DLL.GetSymbol(wxT("GetLayout"));
+        gs_triedToLoadGetLayout = true;
+    }
 
-    return s_pfnGetLayout ? s_pfnGetLayout(hdc) : GDI_ERROR;
+    return gs_pfnGetLayout ? gs_pfnGetLayout(hdc) : GDI_ERROR;
 }
 
 // SetLayout is present in newer w32api versions but in older one (e.g. the one
@@ -241,11 +255,13 @@ DWORD GetLayout(HDC hdc)
 // at it.
 DWORD SetLayout(HDC hdc, DWORD dwLayout)
 {
-    typedef DWORD (WINAPI *SetLayout_t)(HDC, DWORD);
-    static SetLayout_t
-        wxDL_INIT_FUNC(s_pfn, SetLayout, wxDynamicLibrary(wxT("gdi32.dll")));
+    if ( !gs_triedToLoadSetLayout )
+    {
+        gs_pfnSetLayout = (SetLayout_t)wxGDI32DLL.GetSymbol(wxT("SetLayout"));
+        gs_triedToLoadSetLayout = true;
+    }
 
-    return s_pfnSetLayout ? s_pfnSetLayout(hdc, dwLayout) : GDI_ERROR;
+    return gs_pfnSetLayout ? gs_pfnSetLayout(hdc, dwLayout) : GDI_ERROR;
 }
 
 // AlphaBlend() requires linking with libmsimg32.a and we want to avoid this as
@@ -254,50 +270,48 @@ BOOL AlphaBlend(HDC hdcDest, int xDest, int yDest, int wDest, int hDest,
                 HDC hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc,
                 BLENDFUNCTION bf)
 {
-    typedef BOOL (WINAPI *AlphaBlend_t)(HDC,int,int,int,int,
-                                        HDC,int,int,int,int,
-                                        BLENDFUNCTION);
-    static const AlphaBlend_t pfnAlphaBlend =
-        (AlphaBlend_t)wxMSIMG32DLL.GetSymbol(wxT("AlphaBlend"));
+    if ( !gs_triedToLoadAlphaBlend )
+    {
+        gs_pfnAlphaBlend = (AlphaBlend_t)wxMSIMG32DLL.GetSymbol(wxT("AlphaBlend"));
+        gs_triedToLoadAlphaBlend = true;
+    }
 
-    if ( !pfnAlphaBlend )
+    if ( !gs_pfnAlphaBlend )
         return FALSE;
 
-    return pfnAlphaBlend(hdcDest, xDest, yDest, wDest, hDest,
-                         hdcSrc, xSrc, ySrc, wSrc, hSrc,
-                         bf);
+    return gs_pfnAlphaBlend(hdcDest, xDest, yDest, wDest, hDest,
+                            hdcSrc, xSrc, ySrc, wSrc, hSrc,
+                            bf);
 }
 
 // Just as AlphaBlend(), this one lives in msimg32.dll.
 BOOL GradientFill(HDC hdc, PTRIVERTEX pVert, ULONG numVert,
                   PVOID pMesh, ULONG numMesh, ULONG mode)
 {
-    typedef BOOL
-        (WINAPI *GradientFill_t)(HDC, PTRIVERTEX, ULONG, PVOID, ULONG, ULONG);
-    static const GradientFill_t pfnGradientFill =
-        (GradientFill_t)wxMSIMG32DLL.GetSymbol(wxT("GradientFill"));
+    if ( !gs_triedToLoadGradientFill )
+    {
+        gs_pfnGradientFill = (GradientFill_t)wxMSIMG32DLL.GetSymbol(wxT("GradientFill"));
+        gs_triedToLoadGradientFill = true;
+    }
 
-    if ( !pfnGradientFill )
+    if ( !gs_pfnGradientFill )
         return FALSE;
 
-    return pfnGradientFill(hdc, pVert, numVert, pMesh, numMesh, mode);
+    return gs_pfnGradientFill(hdc, pVert, numVert, pMesh, numMesh, mode);
 }
 
 #elif defined(USE_STATIC_GDI_FUNCS)
 
-inline
 DWORD GetLayout(HDC hdc)
 {
     return ::GetLayout(hdc);
 }
 
-inline
 DWORD SetLayout(HDC hdc, DWORD dwLayout)
 {
     return ::SetLayout(hdc, dwLayout);
 }
 
-inline
 BOOL AlphaBlend(HDC hdcDest, int xDest, int yDest, int wDest, int hDest,
                 HDC hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc,
                 BLENDFUNCTION bf)
@@ -307,7 +321,6 @@ BOOL AlphaBlend(HDC hdcDest, int xDest, int yDest, int wDest, int hDest,
                         bf);
 }
 
-inline
 BOOL GradientFill(HDC hdc, PTRIVERTEX pVert, ULONG numVert,
                   PVOID pMesh, ULONG numMesh, ULONG mode)
 {
@@ -392,16 +405,7 @@ private:
     wxDECLARE_NO_COPY_CLASS(wxBrushAttrsSetter);
 };
 
-#ifdef __WXWINCE__
-
-#define SET_STRETCH_BLT_MODE(hdc)
-
-#else // !__WXWINCE__
-
 // this class sets the stretch blit mode to COLORONCOLOR during its lifetime
-//
-// don't use it directly, use SET_STRETCH_BLT_MODE() macro instead as it
-// expands to nothing under WinCE which doesn't have SetStretchBltMode()
 class StretchBltModeChanger
 {
 public:
@@ -430,11 +434,6 @@ private:
 
     wxDECLARE_NO_COPY_CLASS(StretchBltModeChanger);
 };
-
-#define SET_STRETCH_BLT_MODE(hdc) \
-    StretchBltModeChanger wxMAKE_UNIQUE_NAME(stretchModeChanger)(hdc)
-
-#endif // __WXWINCE__/!__WXWINCE__
 
 // ===========================================================================
 // implementation
@@ -565,8 +564,6 @@ void wxMSWDCImpl::SelectOldObjects(WXHDC dc)
 
 void wxMSWDCImpl::UpdateClipBox()
 {
-    WXMICROWIN_CHECK_HDC
-
     RECT rect;
     ::GetClipBox(GetHdc(), &rect);
 
@@ -574,24 +571,32 @@ void wxMSWDCImpl::UpdateClipBox()
     m_clipY1 = (wxCoord) YDEV2LOG(rect.top);
     m_clipX2 = (wxCoord) XDEV2LOG(rect.right);
     m_clipY2 = (wxCoord) YDEV2LOG(rect.bottom);
+    m_isClipBoxValid = true;
 }
 
 void
 wxMSWDCImpl::DoGetClippingBox(wxCoord *x, wxCoord *y, wxCoord *w, wxCoord *h) const
 {
     // check if we should try to retrieve the clipping region possibly not set
-    // by our SetClippingRegion() but preset by Windows:this can only happen
-    // when we're associated with an existing HDC usign SetHDC(), see there
-    if ( m_clipping && !m_clipX1 && !m_clipX2 )
+    // by our SetClippingRegion() but preset or modified by Windows: this
+    // can happen when we're associated with an existing HDC using SetHDC() or
+    // when wxDC logical coordinates are transformed with SetDeviceOrigin(),
+    // SetLogicalOrigin(), SetUserScale(), SetLogicalScale(),
+    // SetTransformMatrix(), ResetTransformMatrix().
+    if ( !m_isClipBoxValid )
     {
         wxMSWDCImpl *self = wxConstCast(this, wxMSWDCImpl);
         self->UpdateClipBox();
-
-        if ( !m_clipX1 && !m_clipX2 )
-            self->m_clipping = false;
     }
 
-    wxDCImpl::DoGetClippingBox(x, y, w, h);
+    if ( x )
+        *x = m_clipX1;
+    if ( y )
+        *y = m_clipY1;
+    if ( w )
+        *w = m_clipX2 - m_clipX1;
+    if ( h )
+        *h = m_clipY2 - m_clipY1;
 }
 
 // common part of DoSetClippingRegion() and DoSetDeviceClippingRegion()
@@ -599,41 +604,15 @@ void wxMSWDCImpl::SetClippingHrgn(WXHRGN hrgn)
 {
     wxCHECK_RET( hrgn, wxT("invalid clipping region") );
 
-    WXMICROWIN_CHECK_HDC
-
     // note that we combine the new clipping region with the existing one: this
     // is compatible with what the other ports do and is the documented
     // behaviour now (starting with 2.3.3)
-#if defined(__WXWINCE__)
-    RECT rectClip;
-    if ( !::GetClipBox(GetHdc(), &rectClip) )
-        return;
-
-    // GetClipBox returns logical coordinates, so transform to device
-    rectClip.left = LogicalToDeviceX(rectClip.left);
-    rectClip.top = LogicalToDeviceY(rectClip.top);
-    rectClip.right = LogicalToDeviceX(rectClip.right);
-    rectClip.bottom = LogicalToDeviceY(rectClip.bottom);
-
-    HRGN hrgnDest = ::CreateRectRgn(0, 0, 0, 0);
-    HRGN hrgnClipOld = ::CreateRectRgn(rectClip.left, rectClip.top,
-                                       rectClip.right, rectClip.bottom);
-
-    if ( ::CombineRgn(hrgnDest, hrgnClipOld, (HRGN)hrgn, RGN_AND) != ERROR )
-    {
-        ::SelectClipRgn(GetHdc(), hrgnDest);
-    }
-
-    ::DeleteObject(hrgnClipOld);
-    ::DeleteObject(hrgnDest);
-#else // !WinCE
     if ( ::ExtSelectClipRgn(GetHdc(), (HRGN)hrgn, RGN_AND) == ERROR )
     {
         wxLogLastError(wxT("ExtSelectClipRgn"));
 
         return;
     }
-#endif // WinCE/!WinCE
 
     m_clipping = true;
 
@@ -646,6 +625,19 @@ void wxMSWDCImpl::DoSetClippingRegion(wxCoord x, wxCoord y, wxCoord w, wxCoord h
     // manually
     //
     // FIXME: possible +/-1 error here, to check!
+    // (x,y) has to represent the left-top corner of the region
+    // so if size values are negative we need to recalculate
+    // parameters of the region to get (x,y) at this corner.
+    if ( w < 0 )
+    {
+        w = -w;
+        x -= (w - 1);
+    }
+    if ( h < 0 )
+    {
+        h = -h;
+        y -= (h - 1);
+    }
     HRGN hrgn = ::CreateRectRgn(LogicalToDeviceX(x),
                                 LogicalToDeviceY(y),
                                 LogicalToDeviceX(x + w),
@@ -669,8 +661,6 @@ void wxMSWDCImpl::DoSetDeviceClippingRegion(const wxRegion& region)
 
 void wxMSWDCImpl::DestroyClippingRegion()
 {
-    WXMICROWIN_CHECK_HDC
-
     if (m_clipping && m_hDC)
     {
 #if 1
@@ -692,6 +682,7 @@ void wxMSWDCImpl::DestroyClippingRegion()
     }
 
     wxDCImpl::DestroyClippingRegion();
+    m_isClipBoxValid = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -705,21 +696,14 @@ bool wxMSWDCImpl::CanDrawBitmap() const
 
 bool wxMSWDCImpl::CanGetTextExtent() const
 {
-#ifdef __WXMICROWIN__
-    // TODO Extend MicroWindows' GetDeviceCaps function
-    return true;
-#else
     // What sort of display is it?
     int technology = ::GetDeviceCaps(GetHdc(), TECHNOLOGY);
 
     return (technology == DT_RASDISPLAY) || (technology == DT_RASPRINTER);
-#endif
 }
 
 int wxMSWDCImpl::GetDepth() const
 {
-    WXMICROWIN_CHECK_HDC_RET(16)
-
     return (int)::GetDeviceCaps(GetHdc(), BITSPIXEL);
 }
 
@@ -729,50 +713,34 @@ int wxMSWDCImpl::GetDepth() const
 
 void wxMSWDCImpl::Clear()
 {
-    WXMICROWIN_CHECK_HDC
-
-    RECT rect;
-    if (m_window)
-    {
-        GetClientRect((HWND) m_window->GetHWND(), &rect);
-    }
-    else
+    if ( !m_window )
     {
         // No, I think we should simply ignore this if printing on e.g.
         // a printer DC.
         // wxCHECK_RET( m_selectedBitmap.IsOk(), wxT("this DC can't be cleared") );
         if (!m_selectedBitmap.IsOk())
             return;
-
-        rect.left = rect.top = 0;
-        rect.right = m_selectedBitmap.GetWidth();
-        rect.bottom = m_selectedBitmap.GetHeight();
     }
-
-    ::OffsetRect(&rect, -m_deviceOriginX, -m_deviceOriginY);
-
-#ifndef __WXWINCE__
-    (void) ::SetMapMode(GetHdc(), MM_TEXT);
-#endif
 
     DWORD colour = ::GetBkColor(GetHdc());
     HBRUSH brush = ::CreateSolidBrush(colour);
+    RECT rect;
+    ::GetClipBox(GetHdc(), &rect);
+    // Inflate the box by 1 unit in each direction
+    // to compensate rounding errors if DC is the subject
+    // of complex transformation (is e.g. rotated).
+    ::InflateRect(&rect, 1, 1);
     ::FillRect(GetHdc(), &rect, brush);
     ::DeleteObject(brush);
 
     RealizeScaleAndOrigin();
 }
 
-bool wxMSWDCImpl::DoFloodFill(wxCoord WXUNUSED_IN_WINCE(x),
-                       wxCoord WXUNUSED_IN_WINCE(y),
-                       const wxColour& WXUNUSED_IN_WINCE(col),
-                       wxFloodFillStyle WXUNUSED_IN_WINCE(style))
+bool wxMSWDCImpl::DoFloodFill(wxCoord x,
+                       wxCoord y,
+                       const wxColour& col,
+                       wxFloodFillStyle style)
 {
-#ifdef __WXWINCE__
-    return false;
-#else
-    WXMICROWIN_CHECK_HDC_RET(false)
-
     bool success = (0 != ::ExtFloodFill(GetHdc(), XLOG2DEV(x), YLOG2DEV(y),
                          col.GetPixel(),
                          style == wxFLOOD_SURFACE ? FLOODFILLSURFACE
@@ -797,13 +765,10 @@ bool wxMSWDCImpl::DoFloodFill(wxCoord WXUNUSED_IN_WINCE(x),
     CalcBoundingBox(x, y);
 
     return success;
-#endif
 }
 
 bool wxMSWDCImpl::DoGetPixel(wxCoord x, wxCoord y, wxColour *col) const
 {
-    WXMICROWIN_CHECK_HDC_RET(false)
-
     wxCHECK_MSG( col, false, wxT("NULL colour parameter in wxMSWDCImpl::GetPixel") );
 
     // get the color of the pixel
@@ -816,8 +781,6 @@ bool wxMSWDCImpl::DoGetPixel(wxCoord x, wxCoord y, wxColour *col) const
 
 void wxMSWDCImpl::DoCrossHair(wxCoord x, wxCoord y)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxCoord x1 = x-VIEWPORT_EXTENT;
     wxCoord y1 = y-VIEWPORT_EXTENT;
     wxCoord x2 = x+VIEWPORT_EXTENT;
@@ -832,8 +795,6 @@ void wxMSWDCImpl::DoCrossHair(wxCoord x, wxCoord y)
 
 void wxMSWDCImpl::DoDrawLine(wxCoord x1, wxCoord y1, wxCoord x2, wxCoord y2)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxDrawLine(GetHdc(), XLOG2DEV(x1), YLOG2DEV(y1), XLOG2DEV(x2), YLOG2DEV(y2));
 
     CalcBoundingBox(x1, y1);
@@ -850,17 +811,6 @@ void wxMSWDCImpl::DoDrawArc(wxCoord x1, wxCoord y1,
     double dy = yc - y1;
     wxCoord r = (wxCoord)sqrt(dx*dx + dy*dy);
 
-
-#ifdef __WXWINCE__
-    // Slower emulation since WinCE doesn't support Pie and Arc
-    double sa = acos((x1-xc)/r)/M_PI*180; // between 0 and 180
-    if( y1>yc )
-        sa = -sa; // below center
-    double ea = atan2(yc-y2, x2-xc)/M_PI*180;
-    DoDrawEllipticArcRot( xc-r, yc-r, 2*r, 2*r, sa, ea );
-#else
-
-    WXMICROWIN_CHECK_HDC
 
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
 
@@ -902,16 +852,11 @@ void wxMSWDCImpl::DoDrawArc(wxCoord x1, wxCoord y1,
 
     CalcBoundingBox(xc - r, yc - r);
     CalcBoundingBox(xc + r, yc + r);
-#endif
 }
 
 void wxMSWDCImpl::DoDrawCheckMark(wxCoord x1, wxCoord y1,
                            wxCoord width, wxCoord height)
 {
-    // cases when we don't have DrawFrameControl()
-#if defined(__SYMANTEC__) || defined(__WXMICROWIN__)
-    return wxDCBase::DoDrawCheckMark(x1, y1, width, height);
-#else // normal case
     wxCoord x2 = x1 + width,
             y2 = y1 + height;
 
@@ -921,21 +866,14 @@ void wxMSWDCImpl::DoDrawCheckMark(wxCoord x1, wxCoord y1,
     rect.right  = x2;
     rect.bottom = y2;
 
-#ifdef __WXWINCE__
-    DrawFrameControl(GetHdc(), &rect, DFC_BUTTON, DFCS_BUTTONCHECK | DFCS_CHECKED);
-#else
     DrawFrameControl(GetHdc(), &rect, DFC_MENU, DFCS_MENUCHECK);
-#endif
 
     CalcBoundingBox(x1, y1);
     CalcBoundingBox(x2, y2);
-#endif // Microwin/Normal
 }
 
 void wxMSWDCImpl::DoDrawPoint(wxCoord x, wxCoord y)
 {
-    WXMICROWIN_CHECK_HDC
-
     COLORREF color = 0x00ffffff;
     if (m_pen.IsOk())
     {
@@ -951,10 +889,8 @@ void wxMSWDCImpl::DoDrawPolygon(int n,
                          const wxPoint points[],
                          wxCoord xoffset,
                          wxCoord yoffset,
-                         wxPolygonFillMode WXUNUSED_IN_WINCE(fillStyle))
+                         wxPolygonFillMode fillStyle)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
 
     // Do things less efficiently if we have offsets
@@ -969,13 +905,9 @@ void wxMSWDCImpl::DoDrawPolygon(int n,
 
             CalcBoundingBox(cpoints[i].x, cpoints[i].y);
         }
-#ifndef __WXWINCE__
         int prev = SetPolyFillMode(GetHdc(),fillStyle==wxODDEVEN_RULE?ALTERNATE:WINDING);
-#endif
         (void)Polygon(GetHdc(), cpoints, n);
-#ifndef __WXWINCE__
         SetPolyFillMode(GetHdc(),prev);
-#endif
         delete[] cpoints;
     }
     else
@@ -984,13 +916,9 @@ void wxMSWDCImpl::DoDrawPolygon(int n,
         for (i = 0; i < n; i++)
             CalcBoundingBox(points[i].x, points[i].y);
 
-#ifndef __WXWINCE__
         int prev = SetPolyFillMode(GetHdc(),fillStyle==wxODDEVEN_RULE?ALTERNATE:WINDING);
-#endif
         (void)Polygon(GetHdc(), (POINT*) points, n);
-#ifndef __WXWINCE__
         SetPolyFillMode(GetHdc(),prev);
-#endif
     }
 }
 
@@ -1002,11 +930,6 @@ wxMSWDCImpl::DoDrawPolyPolygon(int n,
                         wxCoord yoffset,
                         wxPolygonFillMode fillStyle)
 {
-#ifdef __WXWINCE__
-    wxDCImpl::DoDrawPolyPolygon(n, count, points, xoffset, yoffset, fillStyle);
-#else
-    WXMICROWIN_CHECK_HDC
-
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
     int i, cnt;
     for (i = cnt = 0; i < n; i++)
@@ -1023,13 +946,9 @@ wxMSWDCImpl::DoDrawPolyPolygon(int n,
 
             CalcBoundingBox(cpoints[i].x, cpoints[i].y);
         }
-#ifndef __WXWINCE__
         int prev = SetPolyFillMode(GetHdc(),fillStyle==wxODDEVEN_RULE?ALTERNATE:WINDING);
-#endif
         (void)PolyPolygon(GetHdc(), cpoints, count, n);
-#ifndef __WXWINCE__
         SetPolyFillMode(GetHdc(),prev);
-#endif
         delete[] cpoints;
     }
     else
@@ -1037,22 +956,14 @@ wxMSWDCImpl::DoDrawPolyPolygon(int n,
         for (i = 0; i < cnt; i++)
             CalcBoundingBox(points[i].x, points[i].y);
 
-#ifndef __WXWINCE__
         int prev = SetPolyFillMode(GetHdc(),fillStyle==wxODDEVEN_RULE?ALTERNATE:WINDING);
-#endif
         (void)PolyPolygon(GetHdc(), (POINT*) points, count, n);
-#ifndef __WXWINCE__
         SetPolyFillMode(GetHdc(),prev);
-#endif
     }
-#endif
-  // __WXWINCE__
 }
 
 void wxMSWDCImpl::DoDrawLines(int n, const wxPoint points[], wxCoord xoffset, wxCoord yoffset)
 {
-    WXMICROWIN_CHECK_HDC
-
     // Do things less efficiently if we have offsets
     if (xoffset != 0 || yoffset != 0)
     {
@@ -1080,8 +991,6 @@ void wxMSWDCImpl::DoDrawLines(int n, const wxPoint points[], wxCoord xoffset, wx
 
 void wxMSWDCImpl::DoDrawRectangle(wxCoord x, wxCoord y, wxCoord width, wxCoord height)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
 
     wxCoord x2 = x + width;
@@ -1092,10 +1001,9 @@ void wxMSWDCImpl::DoDrawRectangle(wxCoord x, wxCoord y, wxCoord width, wxCoord h
             x2dev = XLOG2DEV(x2),
             y2dev = YLOG2DEV(y2);
 
-    // Windows (but not Windows CE) draws the filled rectangles without outline
+    // Windows draws the filled rectangles without outline
     // (i.e. drawn with a transparent pen) one pixel smaller in both directions
     // and we want them to have the same size regardless of which pen is used
-#ifndef __WXWINCE__
     if ( m_pen.IsTransparent() )
     {
         // Right edge to be extended is "displayed right edge"
@@ -1107,7 +1015,6 @@ void wxMSWDCImpl::DoDrawRectangle(wxCoord x, wxCoord y, wxCoord width, wxCoord h
             x2dev++;
         y2dev++;
     }
-#endif // !__WXWINCE__
 
     (void)Rectangle(GetHdc(), x1dev, y1dev, x2dev, y2dev);
 
@@ -1117,8 +1024,6 @@ void wxMSWDCImpl::DoDrawRectangle(wxCoord x, wxCoord y, wxCoord width, wxCoord h
 
 void wxMSWDCImpl::DoDrawRoundedRectangle(wxCoord x, wxCoord y, wxCoord width, wxCoord height, double radius)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
 
     // Now, a negative radius value is interpreted to mean
@@ -1151,8 +1056,6 @@ void wxMSWDCImpl::DoDrawRoundedRectangle(wxCoord x, wxCoord y, wxCoord width, wx
 
 void wxMSWDCImpl::DoDrawEllipse(wxCoord x, wxCoord y, wxCoord width, wxCoord height)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
 
     // +1 below makes the ellipse more similar to other platforms.
@@ -1169,7 +1072,7 @@ void wxMSWDCImpl::DoDrawEllipse(wxCoord x, wxCoord y, wxCoord width, wxCoord hei
     CalcBoundingBox(x2, y2);
 }
 
-#if wxUSE_SPLINES && !defined(__WXWINCE__)
+#if wxUSE_SPLINES
 void wxMSWDCImpl::DoDrawSpline(const wxPointList *points)
 {
     // quadratic b-spline to cubic bezier spline conversion
@@ -1186,15 +1089,13 @@ void wxMSWDCImpl::DoDrawSpline(const wxPointList *points)
     // B2 = (2*P1 + P2)/3
     // B3 = P2
 
-    WXMICROWIN_CHECK_HDC
-
     wxASSERT_MSG( points, wxT("NULL pointer to spline points?") );
 
     const size_t n_points = points->GetCount();
     wxASSERT_MSG( n_points > 2 , wxT("incomplete list of spline points?") );
 
     const size_t n_bezier_points = n_points * 3 + 1;
-    POINT *lppt = (POINT *)malloc(n_bezier_points*sizeof(POINT));
+    POINT *lppt = new POINT[n_bezier_points];
     size_t bezier_pos = 0;
     wxCoord x1, y1, x2, y2, cx1, cy1, cx4, cy4;
 
@@ -1205,6 +1106,7 @@ void wxMSWDCImpl::DoDrawSpline(const wxPointList *points)
     bezier_pos++;
     lppt[ bezier_pos ] = lppt[ bezier_pos-1 ];
     bezier_pos++;
+    CalcBoundingBox(x1, y1);
 
     node = node->GetNext();
     p = node->GetData();
@@ -1218,6 +1120,7 @@ void wxMSWDCImpl::DoDrawSpline(const wxPointList *points)
     bezier_pos++;
     lppt[ bezier_pos ] = lppt[ bezier_pos-1 ];
     bezier_pos++;
+    CalcBoundingBox(x2, y2);
 
 #if !wxUSE_STD_CONTAINERS
     while ((node = node->GetNext()) != NULL)
@@ -1247,6 +1150,8 @@ void wxMSWDCImpl::DoDrawSpline(const wxPointList *points)
         bezier_pos++;
         cx1 = cx4;
         cy1 = cy4;
+
+        CalcBoundingBox(x2, y2);
     }
 
     lppt[ bezier_pos ] = lppt[ bezier_pos-1 ];
@@ -1259,19 +1164,13 @@ void wxMSWDCImpl::DoDrawSpline(const wxPointList *points)
 
     ::PolyBezier( GetHdc(), lppt, bezier_pos );
 
-    free(lppt);
+    delete []lppt;
 }
 #endif // wxUSE_SPLINES
 
 // Chris Breeze 20/5/98: first implementation of DrawEllipticArc on Windows
 void wxMSWDCImpl::DoDrawEllipticArc(wxCoord x,wxCoord y,wxCoord w,wxCoord h,double sa,double ea)
 {
-#ifdef __WXWINCE__
-    DoDrawEllipticArcRot( x, y, w, h, sa, ea );
-#else
-
-    WXMICROWIN_CHECK_HDC
-
     wxBrushAttrsSetter cc(*this); // needed for wxSTIPPLE_MASK_OPAQUE handling
 
     wxCoord x2 = x + w;
@@ -1311,13 +1210,10 @@ void wxMSWDCImpl::DoDrawEllipticArc(wxCoord x,wxCoord y,wxCoord w,wxCoord h,doub
 
     CalcBoundingBox(x, y);
     CalcBoundingBox(x2, y2);
-#endif
 }
 
 void wxMSWDCImpl::DoDrawIcon(const wxIcon& icon, wxCoord x, wxCoord y)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxCHECK_RET( icon.IsOk(), wxT("invalid icon in DrawIcon") );
 
     // Check if we are printing: notice that it's not enough to just check for
@@ -1334,11 +1230,7 @@ void wxMSWDCImpl::DoDrawIcon(const wxIcon& icon, wxCoord x, wxCoord y)
     }
     else
     {
-#ifdef __WIN32__
         ::DrawIconEx(GetHdc(), XLOG2DEV(x), YLOG2DEV(y), GetHiconOf(icon), icon.GetWidth(), icon.GetHeight(), 0, NULL, DI_NORMAL);
-#else
-        ::DrawIcon(GetHdc(), XLOG2DEV(x), YLOG2DEV(y), GetHiconOf(icon));
-#endif
     }
 
     CalcBoundingBox(x, y);
@@ -1347,8 +1239,6 @@ void wxMSWDCImpl::DoDrawIcon(const wxIcon& icon, wxCoord x, wxCoord y)
 
 void wxMSWDCImpl::DoDrawBitmap( const wxBitmap &bmp, wxCoord x, wxCoord y, bool useMask )
 {
-    WXMICROWIN_CHECK_HDC
-
     wxCHECK_RET( bmp.IsOk(), wxT("invalid bitmap in wxMSWDCImpl::DrawBitmap") );
 
     int width = bmp.GetWidth(),
@@ -1373,7 +1263,7 @@ void wxMSWDCImpl::DoDrawBitmap( const wxBitmap &bmp, wxCoord x, wxCoord y, bool 
         }
     }
 
-    SET_STRETCH_BLT_MODE(GetHdc());
+    StretchBltModeChanger stretchModeChanger(GetHdc());
 
     if ( useMask )
     {
@@ -1390,7 +1280,6 @@ void wxMSWDCImpl::DoDrawBitmap( const wxBitmap &bmp, wxCoord x, wxCoord y, bool 
     }
     if ( useMask )
     {
-#ifdef __WIN32__
         // use MaskBlt() with ROP which doesn't do anything to dst in the mask
         // points
         bool ok = false;
@@ -1435,7 +1324,6 @@ void wxMSWDCImpl::DoDrawBitmap( const wxBitmap &bmp, wxCoord x, wxCoord y, bool 
         }
 
         if ( !ok )
-#endif // Win32
         {
             // Rather than reproduce wxMSWDCImpl::Blit, let's do it at the wxWin API
             // level
@@ -1496,8 +1384,6 @@ void wxMSWDCImpl::DoDrawText(const wxString& text, wxCoord x, wxCoord y)
         return;
     }
 
-    WXMICROWIN_CHECK_HDC
-
     // prepare for drawing the text
     wxTextColoursChanger textCol(GetHdc(), *this);
 
@@ -1526,8 +1412,6 @@ void wxMSWDCImpl::DoDrawRotatedText(const wxString& text,
                              wxCoord x, wxCoord y,
                              double angle)
 {
-    WXMICROWIN_CHECK_HDC
-
     // we test that we have some font because otherwise we should still use the
     // "else" part below to avoid that DrawRotatedText(angle = 180) and
     // DrawRotatedText(angle = 0) use different fonts (we can't use the default
@@ -1540,10 +1424,9 @@ void wxMSWDCImpl::DoDrawRotatedText(const wxString& text,
         return;
     }
 
-#ifndef __WXMICROWIN__
     // NB: don't take DEFAULT_GUI_FONT (a.k.a. wxSYS_DEFAULT_GUI_FONT)
     //     because it's not TrueType and so can't have non zero
-    //     orientation/escapement under Win9x
+    //     orientation/escapement
     wxFont font = m_font.IsOk() ? m_font : *wxSWISS_FONT;
     LOGFONT lf;
     if ( ::GetObject(GetHfontOf(font), sizeof(lf), &lf) == 0 )
@@ -1603,7 +1486,6 @@ void wxMSWDCImpl::DoDrawRotatedText(const wxString& text,
     y += (wxCoord)(h*cos(rad));
     CalcBoundingBox(x, y);
     CalcBoundingBox(x + wxCoord(w*cos(rad)), y - wxCoord(w*sin(rad)));
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -1614,8 +1496,6 @@ void wxMSWDCImpl::DoDrawRotatedText(const wxString& text,
 
 void wxMSWDCImpl::DoSelectPalette(bool realize)
 {
-    WXMICROWIN_CHECK_HDC
-
     // Set the old object temporarily, in case the assignment deletes an object
     // that's not yet selected out.
     if (m_oldPalette)
@@ -1669,8 +1549,6 @@ void wxMSWDCImpl::InitializePalette()
 
 void wxMSWDCImpl::SetFont(const wxFont& font)
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( font == m_font )
         return;
 
@@ -1707,8 +1585,6 @@ void wxMSWDCImpl::SetFont(const wxFont& font)
 
 void wxMSWDCImpl::SetPen(const wxPen& pen)
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( pen == m_pen )
         return;
 
@@ -1745,8 +1621,6 @@ void wxMSWDCImpl::SetPen(const wxPen& pen)
 
 void wxMSWDCImpl::SetBrush(const wxBrush& brush)
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( brush == m_brush )
         return;
 
@@ -1807,8 +1681,6 @@ void wxMSWDCImpl::SetBrush(const wxBrush& brush)
 
 void wxMSWDCImpl::SetBackground(const wxBrush& brush)
 {
-    WXMICROWIN_CHECK_HDC
-
     m_backgroundBrush = brush;
 
     if ( m_backgroundBrush.IsOk() )
@@ -1819,8 +1691,6 @@ void wxMSWDCImpl::SetBackground(const wxBrush& brush)
 
 void wxMSWDCImpl::SetBackgroundMode(int mode)
 {
-    WXMICROWIN_CHECK_HDC
-
     m_backgroundMode = mode;
 
     // SetBackgroundColour now only refers to text background
@@ -1829,8 +1699,6 @@ void wxMSWDCImpl::SetBackgroundMode(int mode)
 
 void wxMSWDCImpl::SetLogicalFunction(wxRasterOperationMode function)
 {
-    WXMICROWIN_CHECK_HDC
-
     m_logicalFunction = function;
 
     SetRop(m_hDC);
@@ -1893,8 +1761,6 @@ void wxMSWDCImpl::EndPage()
 
 wxCoord wxMSWDCImpl::GetCharHeight() const
 {
-    WXMICROWIN_CHECK_HDC_RET(0)
-
     TEXTMETRIC lpTextMetric;
 
     GetTextMetrics(GetHdc(), &lpTextMetric);
@@ -1904,8 +1770,6 @@ wxCoord wxMSWDCImpl::GetCharHeight() const
 
 wxCoord wxMSWDCImpl::GetCharWidth() const
 {
-    WXMICROWIN_CHECK_HDC_RET(0)
-
     TEXTMETRIC lpTextMetric;
 
     GetTextMetrics(GetHdc(), &lpTextMetric);
@@ -1942,17 +1806,6 @@ void wxMSWDCImpl::DoGetTextExtent(const wxString& string, wxCoord *x, wxCoord *y
                            wxCoord *descent, wxCoord *externalLeading,
                            const wxFont *font) const
 {
-#ifdef __WXMICROWIN__
-    if (!GetHDC())
-    {
-        if (x) *x = 0;
-        if (y) *y = 0;
-        if (descent) *descent = 0;
-        if (externalLeading) *externalLeading = 0;
-        return;
-    }
-#endif // __WXMICROWIN__
-
     wxASSERT_MSG( !font || font->IsOk(), wxT("invalid font in wxMSWDCImpl::GetTextExtent") );
 
     wxTextMeasure txm(GetOwner(), font);
@@ -1996,7 +1849,6 @@ void wxMSWDCImpl::RealizeScaleAndOrigin()
     // although it may seem wasteful to always use MM_ANISOTROPIC here instead
     // of using MM_TEXT if there is no scaling, benchmarking doesn't detect any
     // noticeable difference between these mapping modes
-#ifndef __WXWINCE__
     ::SetMapMode(GetHdc(), MM_ANISOTROPIC);
 
     // wxWidgets API assumes that the coordinate space is "infinite" (i.e. only
@@ -2024,13 +1876,12 @@ void wxMSWDCImpl::RealizeScaleAndOrigin()
 
     ::SetViewportOrgEx(GetHdc(), m_deviceOriginX, m_deviceOriginY, NULL);
     ::SetWindowOrgEx(GetHdc(), m_logicalOriginX, m_logicalOriginY, NULL);
-#endif
+
+    m_isClipBoxValid = false;
 }
 
 void wxMSWDCImpl::SetMapMode(wxMappingMode mode)
 {
-    WXMICROWIN_CHECK_HDC
-
     m_mappingMode = mode;
 
     if ( mode == wxMM_TEXT )
@@ -2088,8 +1939,6 @@ void wxMSWDCImpl::SetMapMode(wxMappingMode mode)
 
 void wxMSWDCImpl::SetUserScale(double x, double y)
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( x == m_userScaleX && y == m_userScaleY )
         return;
 
@@ -2101,8 +1950,6 @@ void wxMSWDCImpl::SetUserScale(double x, double y)
 void wxMSWDCImpl::SetAxisOrientation(bool xLeftRight,
                               bool yBottomUp)
 {
-    WXMICROWIN_CHECK_HDC
-
     int signX = xLeftRight ? 1 : -1,
         signY = yBottomUp ? -1 : 1;
 
@@ -2116,8 +1963,6 @@ void wxMSWDCImpl::SetAxisOrientation(bool xLeftRight,
 
 void wxMSWDCImpl::SetLogicalOrigin(wxCoord x, wxCoord y)
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( x == m_logicalOriginX && y == m_logicalOriginY )
         return;
 
@@ -2129,21 +1974,21 @@ void wxMSWDCImpl::SetLogicalOrigin(wxCoord x, wxCoord y)
 // For use by wxWidgets only, unless custom units are required.
 void wxMSWDCImpl::SetLogicalScale(double x, double y)
 {
-    WXMICROWIN_CHECK_HDC
-
     wxDCImpl::SetLogicalScale(x,y);
+
+    RealizeScaleAndOrigin();
 }
 
 void wxMSWDCImpl::SetDeviceOrigin(wxCoord x, wxCoord y)
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( x == m_deviceOriginX && y == m_deviceOriginY )
         return;
 
     wxDCImpl::SetDeviceOrigin( x, y );
 
     ::SetViewportOrgEx(GetHdc(), (int)m_deviceOriginX, (int)m_deviceOriginY, NULL);
+
+    m_isClipBoxValid = false;
 }
 
 // ----------------------------------------------------------------------------
@@ -2189,6 +2034,7 @@ bool wxMSWDCImpl::SetTransformMatrix(const wxAffineMatrix2D &matrix)
         return false;
     }
 
+    m_isClipBoxValid = false;
     return true;
 }
 
@@ -2214,6 +2060,7 @@ void wxMSWDCImpl::ResetTransformMatrix()
 {
     ::ModifyWorldTransform(GetHdc(), NULL, MWT_IDENTITY);
     ::SetGraphicsMode(GetHdc(), GM_COMPATIBLE);
+    m_isClipBoxValid = false;
 }
 
 #endif // wxUSE_DC_TRANSFORM_MATRIX
@@ -2241,8 +2088,6 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
                          wxCoord xsrcMask, wxCoord ysrcMask)
 {
     wxCHECK_MSG( source, false, wxT("wxMSWDCImpl::Blit(): NULL wxDC pointer") );
-
-    WXMICROWIN_CHECK_HDC_RET(false)
 
     wxMSWDCImpl *implSrc = wxDynamicCast( source->GetImpl(), wxMSWDCImpl );
     if ( !implSrc )
@@ -2326,7 +2171,6 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
 
     if (useMask)
     {
-#ifdef __WIN32__
         // we want the part of the image corresponding to the mask to be
         // transparent, so use "DSTCOPY" ROP for the mask points (the usual
         // meaning of fg and bg is inverted which corresponds to wxWin notion
@@ -2356,7 +2200,6 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
         }
 
         if ( !success )
-#endif // Win32
         {
             // Blit bitmap with mask
             HDC dc_mask ;
@@ -2391,7 +2234,7 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
                 wxLogLastError(wxT("BitBlt"));
             }
 
-            SET_STRETCH_BLT_MODE(GetHdc());
+            StretchBltModeChanger stretchModeChanger(GetHdc());
 
             // copy src to buffer using selected raster op
             if ( !::StretchBlt(dc_buffer, 0, 0, dstWidth, dstHeight,
@@ -2447,10 +2290,10 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
         // if we already have a DIB, draw it using StretchDIBits(), otherwise
         // use StretchBlt() if available and finally fall back to BitBlt()
 
-        // FIXME: use appropriate WinCE functions
-#ifndef __WXWINCE__
+        // Notice that we can't use StretchDIBits() when source and destination
+        // are the same as it can't, apparently, handle overlapping surfaces.
         const int caps = ::GetDeviceCaps(GetHdc(), RASTERCAPS);
-        if ( bmpSrc.IsOk() && (caps & RC_STRETCHDIB) )
+        if ( bmpSrc.IsOk() && (GetHdc() != hdcSrc) && (caps & RC_STRETCHDIB) )
         {
             DIBSECTION ds;
             wxZeroMemory(ds);
@@ -2459,7 +2302,7 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
                              sizeof(ds),
                              &ds) == sizeof(ds) )
             {
-                SET_STRETCH_BLT_MODE(GetHdc());
+                StretchBltModeChanger stretchModeChanger(GetHdc());
 
                 // Unlike all the other functions used here (i.e. AlphaBlt(),
                 // MaskBlt(), BitBlt() and StretchBlt()), StretchDIBits() does
@@ -2492,11 +2335,7 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
                                      dwRop
                                      ) == (int)GDI_ERROR )
                 {
-                    // On Win9x this API fails most (all?) of the time, so
-                    // logging it becomes quite distracting.  Since it falls
-                    // back to the code below this is not really serious, so
-                    // don't log it.
-                    //wxLogLastError(wxT("StretchDIBits"));
+                    wxLogLastError(wxT("StretchDIBits"));
                 }
                 else
                 {
@@ -2506,10 +2345,8 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
         }
 
         if ( !success && (caps & RC_STRETCHBLT) )
-#endif
-        // __WXWINCE__
         {
-            SET_STRETCH_BLT_MODE(GetHdc());
+            StretchBltModeChanger stretchModeChanger(GetHdc());
 
             if ( !::StretchBlt
                     (
@@ -2553,8 +2390,6 @@ bool wxMSWDCImpl::DoStretchBlit(wxCoord xdest, wxCoord ydest,
 
 void wxMSWDCImpl::GetDeviceSize(int *width, int *height) const
 {
-    WXMICROWIN_CHECK_HDC
-
     if ( width )
         *width = ::GetDeviceCaps(GetHdc(), HORZRES);
     if ( height )
@@ -2563,8 +2398,6 @@ void wxMSWDCImpl::GetDeviceSize(int *width, int *height) const
 
 void wxMSWDCImpl::DoGetSizeMM(int *w, int *h) const
 {
-    WXMICROWIN_CHECK_HDC
-
     // if we implement it in terms of DoGetSize() instead of directly using the
     // results returned by GetDeviceCaps(HORZ/VERTSIZE) as was done before, it
     // will also work for wxWindowDC and wxClientDC even though their size is
@@ -2593,8 +2426,6 @@ void wxMSWDCImpl::DoGetSizeMM(int *w, int *h) const
 
 wxSize wxMSWDCImpl::GetPPI() const
 {
-    WXMICROWIN_CHECK_HDC_RET(wxSize(0,0))
-
     int x = ::GetDeviceCaps(GetHdc(), LOGPIXELSX);
     int y = ::GetDeviceCaps(GetHdc(), LOGPIXELSY);
 
@@ -2727,8 +2558,8 @@ void wxMSWDCImpl::ClearCache()
 class wxDCModule : public wxModule
 {
 public:
-    virtual bool OnInit() { return true; }
-    virtual void OnExit() { wxMSWDCImpl::ClearCache(); }
+    virtual bool OnInit() wxOVERRIDE { return true; }
+    virtual void OnExit() wxOVERRIDE { wxMSWDCImpl::ClearCache(); }
 
 private:
     wxDECLARE_DYNAMIC_CLASS(wxDCModule);
@@ -2793,15 +2624,23 @@ static bool AlphaBlt(wxMSWDCImpl* dcDst,
         // Notice the extra block: we must destroy wxAlphaPixelData
         // before selecting the bitmap into the DC again.
         {
+            // Since drawn bitmap can only partially overlap
+            // with destination bitmap we need to calculate
+            // efective drawing area location.
+            const wxRect rectDst(bmpOld.GetSize());
+            const wxRect rectDrawn(x, y, dstWidth, dstHeight);
+            const wxRect r = rectDrawn.Intersect(rectDst);
+
             wxAlphaPixelData data(bmpOld);
             if ( data )
             {
                 wxAlphaPixelData::Iterator p(data);
-                for ( int y = 0; y < data.GetHeight(); y++ )
+
+                p.Offset(data, r.GetLeft(), r.GetTop());
+                for ( int old_y = 0; old_y < r.GetHeight(); old_y++ )
                 {
                     wxAlphaPixelData::Iterator rowStart = p;
-
-                    for ( int x = 0; x < data.GetWidth(); x++ )
+                    for ( int old_x = 0; old_x < r.GetWidth(); old_x++ )
                     {
                         // We choose to use wxALPHA_TRANSPARENT instead
                         // of perhaps more logical wxALPHA_OPAQUE here

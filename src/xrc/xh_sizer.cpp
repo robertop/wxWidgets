@@ -267,6 +267,10 @@ wxObject* wxSizerXmlHandler::Handle_sizer()
 
     CreateChildren(parent, true/*only this handler*/);
 
+    // This has to be done after CreateChildren().
+    if ( GetBool(wxT("hideitems"), 0) == 1 )
+        sizer->ShowItems(false);
+
     // set growable rows and cols for sizers which support this
     if ( wxFlexGridSizer *flexsizer = wxDynamicCast(sizer, wxFlexGridSizer) )
     {
@@ -508,17 +512,17 @@ void wxSizerXmlHandler::SetGrowables(wxFlexGridSizer* sizer,
 }
 
 
-wxGBPosition wxSizerXmlHandler::GetGBPos(const wxString& param)
+wxGBPosition wxSizerXmlHandler::GetGBPos()
 {
-    wxSize sz = GetSize(param);
+    wxSize sz = GetPairInts(wxS("cellpos"));
     if (sz.x < 0) sz.x = 0;
     if (sz.y < 0) sz.y = 0;
     return wxGBPosition(sz.x, sz.y);
 }
 
-wxGBSpan wxSizerXmlHandler::GetGBSpan(const wxString& param)
+wxGBSpan wxSizerXmlHandler::GetGBSpan()
 {
-    wxSize sz = GetSize(param);
+    wxSize sz = GetPairInts(wxS("cellspan"));
     if (sz.x < 1) sz.x = 1;
     if (sz.y < 1) sz.y = 1;
     return wxGBSpan(sz.x, sz.y);
@@ -852,15 +856,15 @@ void wxSizerXmlHandler::SetSizerItemAttributes(wxSizerItem* sitem)
     wxSize sz = GetSize(wxT("minsize"));
     if (!(sz == wxDefaultSize))
         sitem->SetMinSize(sz);
-    sz = GetSize(wxT("ratio"));
+    sz = GetPairInts(wxT("ratio"));
     if (!(sz == wxDefaultSize))
         sitem->SetRatio(sz);
 
     if (m_isGBS)
     {
         wxGBSizerItem* gbsitem = (wxGBSizerItem*)sitem;
-        gbsitem->SetPos(GetGBPos(wxT("cellpos")));
-        gbsitem->SetSpan(GetGBSpan(wxT("cellspan")));
+        gbsitem->SetPos(GetGBPos());
+        gbsitem->SetSpan(GetGBSpan());
     }
 
     // record the id of the item, if any, for use by XRCSIZERITEM()

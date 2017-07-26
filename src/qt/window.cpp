@@ -8,14 +8,9 @@
 // For compilers that support precompilation, includes "wx.h".
 #include "wx/wxprec.h"
 
-#include "wx/window.h"
-#include "wx/log.h"
-#include "wx/menu.h"
-#include "wx/tooltip.h"
-#include "wx/scrolbar.h"
-#include "wx/qt/private/utils.h"
-#include "wx/qt/private/converter.h"
-#include "wx/qt/private/winevent.h"
+#ifdef __BORLANDC__
+    #pragma hdrstop
+#endif
 
 #include <QtGui/QPicture>
 #include <QtGui/QPainter>
@@ -24,9 +19,25 @@
 #include <QtWidgets/QWidget>
 #include <QtWidgets/QScrollArea>
 
+#ifndef WX_PRECOMP
+    #include "wx/dcclient.h"
+    #include "wx/frame.h"
+    #include "wx/log.h"
+    #include "wx/menu.h"
+    #include "wx/scrolbar.h"
+#endif // WX_PRECOMP
+
+#include "wx/window.h"
+#include "wx/tooltip.h"
+#include "wx/qt/private/utils.h"
+#include "wx/qt/private/converter.h"
+#include "wx/qt/private/winevent.h"
+
 
 #define VERT_SCROLLBAR_POSITION 0, 1
 #define HORZ_SCROLLBAR_POSITION 1, 0
+
+#define TRACE_QT_WINDOW "qtwindow"
 
 // Base Widget helper (no scrollbar, used by wxWindow)
 
@@ -179,7 +190,7 @@ wxWindowQt::~wxWindowQt()
     // Delete only if the qt widget was created or assigned to this base class
     if (m_qtWindow)
     {
-        wxLogDebug(wxT("wxWindow::~wxWindow %s m_qtWindow=%p"),
+        wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::~wxWindow %s m_qtWindow=%p"),
                    (const char*)GetName(), m_qtWindow);
         // Avoid sending further signals (i.e. if deleting the current page)
         m_qtWindow->blockSignals(true);
@@ -191,7 +202,7 @@ wxWindowQt::~wxWindowQt()
     }
     else
     {
-        wxLogDebug(wxT("wxWindow::~wxWindow %s m_qtWindow is NULL"),
+        wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::~wxWindow %s m_qtWindow is NULL"),
                    (const char*)GetName());
     }
 }
@@ -247,7 +258,7 @@ void wxWindowQt::PostCreation(bool generic)
         // store pointer to the QWidget subclass (to be used in the destructor)
         m_qtWindow = GetHandle();
     }
-    wxLogDebug(wxT("wxWindow::Create %s m_qtWindow=%p"),
+    wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::Create %s m_qtWindow=%p"),
                (const char*)GetName(), m_qtWindow);
 
     // set the background style after creation (not before like in wxGTK)
@@ -382,7 +393,7 @@ void wxWindowQt::WarpPointer(int x, int y)
 
 void wxWindowQt::Update()
 {
-    wxLogDebug(wxT("wxWindow::Update %s"), (const char*)GetName());
+    wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::Update %s"), (const char*)GetName());
     // send the paint event to the inner widget in scroll areas:
     if ( QtGetScrollBarsContainer() )
     {
@@ -408,14 +419,14 @@ void wxWindowQt::Refresh( bool WXUNUSED( eraseBackground ), const wxRect *rect )
     {
         if ( rect != NULL )
         {
-            wxLogDebug(wxT("wxWindow::Refresh %s rect %d %d %d %d"),
+            wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::Refresh %s rect %d %d %d %d"),
                        (const char*)GetName(),
                        rect->x, rect->y, rect->width, rect->height);
             widget->update( wxQtConvertRect( *rect ));
         }
         else
         {
-            wxLogDebug(wxT("wxWindow::Refresh %s"),
+            wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::Refresh %s"),
                        (const char*)GetName());
             widget->update();
         }
@@ -1009,13 +1020,6 @@ bool wxWindowQt::QtHandlePaintEvent ( QWidget *handler, QPaintEvent *event )
         // use the Qt event region:
         m_updateRegion.QtSetRegion( event->region() );
 
-        if (false)
-            wxLogDebug(wxT("wxWindow::QtHandlePaintEvent %s %s region %d %d %d %d"),
-                   (const char*)GetName(),
-                   m_qtPicture->isNull() ? "wxPaintDC" : "wxClientDC",
-                   m_updateRegion.GetBox().x, m_updateRegion.GetBox().y,
-                   m_updateRegion.GetBox().width, m_updateRegion.GetBox().height);
-
         // Prepare the Qt painter for wxWindowDC:
         bool ok = false;
         if ( QtGetScrollBarsContainer() )
@@ -1062,7 +1066,7 @@ bool wxWindowQt::QtHandlePaintEvent ( QWidget *handler, QPaintEvent *event )
                             // Ensure DC is cleared if handler didn't and Qt will not do it
                             if ( UseBgCol() && !GetHandle()->autoFillBackground() )
                             {
-                                wxLogDebug(wxT("wxWindow::QtHandlePaintEvent %s clearing DC to %s"),
+                                wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::QtHandlePaintEvent %s clearing DC to %s"),
                                            (const char*)GetName(), GetBackgroundColour().GetAsString()
                                            );
                                 dc.SetBackground(GetBackgroundColour());
@@ -1111,7 +1115,7 @@ bool wxWindowQt::QtHandlePaintEvent ( QWidget *handler, QPaintEvent *event )
         else
         {
             // Painter didn't begun, not handled by wxWidgets:
-            wxLogDebug(wxT("wxWindow::QtHandlePaintEvent %s Qt widget painter begin failed"),
+            wxLogTrace(TRACE_QT_WINDOW, wxT("wxWindow::QtHandlePaintEvent %s Qt widget painter begin failed"),
                        (const char*)GetName() );
             return false;
         }

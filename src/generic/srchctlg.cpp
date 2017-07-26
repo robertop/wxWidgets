@@ -60,24 +60,24 @@ public:
         InvalidateBestSize();
     }
 
-    virtual wxWindow* GetMainWindowOfCompositeControl()
+    virtual wxWindow* GetMainWindowOfCompositeControl() wxOVERRIDE
     {
         return m_search;
     }
 
     // provide access to the base class protected methods to wxSearchCtrl which
     // needs to forward to them
-    void DoSetValue(const wxString& value, int flags)
+    void DoSetValue(const wxString& value, int flags) wxOVERRIDE
     {
         wxTextCtrl::DoSetValue(value, flags);
     }
 
-    bool DoLoadFile(const wxString& file, int fileType)
+    bool DoLoadFile(const wxString& file, int fileType) wxOVERRIDE
     {
         return wxTextCtrl::DoLoadFile(file, fileType);
     }
 
-    bool DoSaveFile(const wxString& file, int fileType)
+    bool DoSaveFile(const wxString& file, int fileType) wxOVERRIDE
     {
         return wxTextCtrl::DoSaveFile(file, fileType);
     }
@@ -120,7 +120,7 @@ protected:
     // to do this easily and as there is much in that code I don't understand
     // (notably what is the logic for buttons sizing?) I prefer to not touch it
     // at all.
-    virtual wxSize DoGetBestSize() const
+    virtual wxSize DoGetBestSize() const wxOVERRIDE
     {
         const long flags = GetWindowStyleFlag();
         wxSearchTextCtrl* const self = const_cast<wxSearchTextCtrl*>(this);
@@ -180,15 +180,15 @@ public:
     // control and not give it to the button inside the same control. Besides,
     // the search button can be already activated by pressing "Enter" so there
     // is really no reason for it to be able to get focus from keyboard.
-    virtual bool AcceptsFocusFromKeyboard() const { return false; }
+    virtual bool AcceptsFocusFromKeyboard() const wxOVERRIDE { return false; }
 
-    virtual wxWindow* GetMainWindowOfCompositeControl()
+    virtual wxWindow* GetMainWindowOfCompositeControl() wxOVERRIDE
     {
         return m_search;
     }
 
 protected:
-    wxSize DoGetBestSize() const
+    wxSize DoGetBestSize() const wxOVERRIDE
     {
         return wxSize(m_bmp.GetWidth(), m_bmp.GetHeight());
     }
@@ -488,6 +488,7 @@ void wxSearchCtrl::LayoutControls()
     int horizontalBorder = 1 + ( sizeText.y - sizeText.y * 14 / 21 ) / 2;
     int x = horizontalBorder;
     width -= horizontalBorder*2;
+    if (width < 0) width = 0;
 
     wxSize sizeSearch(0,0);
     wxSize sizeCancel(0,0);
@@ -820,6 +821,24 @@ bool wxSearchCtrl::SetBackgroundColour(const wxColour& colour)
     return true;
 }
 
+
+// Autocomplete
+bool wxSearchCtrl::DoAutoCompleteStrings(const wxArrayString &choices)
+{
+    return m_text->AutoComplete( choices );
+}
+
+bool wxSearchCtrl::DoAutoCompleteFileNames(int flags)
+{
+    return flags == wxFILE ? m_text->AutoCompleteFileNames() : m_text->AutoCompleteDirectories();
+}
+
+bool wxSearchCtrl::DoAutoCompleteCustom(wxTextCompleter *completer)
+{
+    return m_text->AutoComplete(completer);
+}
+
+
 // search control generic only
 void wxSearchCtrl::SetSearchBitmap( const wxBitmap& bitmap )
 {
@@ -926,10 +945,6 @@ bool wxSearchCtrl::ShouldInheritColours() const
 // antialiasing
 static int GetMultiplier()
 {
-#ifdef __WXWINCE__
-    // speed up bitmap generation by using a small bitmap
-    return 3;
-#else
     int depth = ::wxDisplayDepth();
 
     if  ( depth >= 24 )
@@ -937,7 +952,32 @@ static int GetMultiplier()
         return 8;
     }
     return 6;
-#endif
+}
+
+static void RescaleBitmap(wxBitmap& bmp, const wxSize& sizeNeeded)
+{
+    wxCHECK_RET( sizeNeeded.IsFullySpecified(), wxS("New size must be given") );
+
+#if wxUSE_IMAGE
+    wxImage img = bmp.ConvertToImage();
+    img.Rescale(sizeNeeded.x, sizeNeeded.y);
+    bmp = wxBitmap(img);
+#else // !wxUSE_IMAGE
+    // Fallback method of scaling the bitmap
+    wxBitmap newBmp(sizeNeeded, bmp.GetDepth());
+#if defined(__WXMSW__) || defined(__WXOSX__)
+    // wxBitmap::UseAlpha() is used only on wxMSW and wxOSX.
+    newBmp.UseAlpha(bmp.HasAlpha());
+#endif // __WXMSW__ || __WXOSX__
+    {
+        wxMemoryDC dc(newBmp);
+        double scX = (double)sizeNeeded.GetWidth() / bmp.GetWidth();
+        double scY = (double)sizeNeeded.GetHeight() / bmp.GetHeight();
+        dc.SetUserScale(scX, scY);
+        dc.DrawBitmap(bmp, 0, 0);
+    }
+    bmp = newBmp;
+#endif // wxUSE_IMAGE/!wxUSE_IMAGE
 }
 
 wxBitmap wxSearchCtrl::RenderSearchBitmap( int x, int y, bool renderDrop )
@@ -1032,9 +1072,7 @@ wxBitmap wxSearchCtrl::RenderSearchBitmap( int x, int y, bool renderDrop )
 
     if ( multiplier != 1 )
     {
-        wxImage image = bitmap.ConvertToImage();
-        image.Rescale(x,y);
-        bitmap = wxBitmap( image );
+        RescaleBitmap(bitmap, wxSize(x, y));
     }
     if ( !renderDrop )
     {
@@ -1122,9 +1160,7 @@ wxBitmap wxSearchCtrl::RenderCancelBitmap( int x, int y )
 
     if ( multiplier != 1 )
     {
-        wxImage image = bitmap.ConvertToImage();
-        image.Rescale(x,y);
-        bitmap = wxBitmap( image );
+        RescaleBitmap(bitmap, wxSize(x, y));
     }
 
     return bitmap;

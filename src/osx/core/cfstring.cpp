@@ -34,6 +34,15 @@ void wxMacConvertNewlines13To10( char * data )
     }
 }
 
+void wxMacConvertNewlines13To10( wxChar16 * data )
+{
+    for ( ; *data; ++data )
+    {
+        if ( *data == 0x0d )
+            *data = 0x0a;
+    }
+}
+
 void wxMacConvertNewlines10To13( char * data )
 {
     char * buf = data ;
@@ -621,9 +630,16 @@ wxCFStringRef::wxCFStringRef( const wxString &st , wxFontEncoding WXUNUSED_IN_UN
 #else
     #error "unsupported Unicode representation"
 #endif
-
-        reset( CFStringCreateWithBytes( kCFAllocatorDefault,
-            (const UInt8*)data, size, cfencoding, false /* no BOM */ ) );
+        CFStringRef ref = CFStringCreateWithBytes( kCFAllocatorDefault,
+            (const UInt8*)data, size, cfencoding, false /* no BOM */ );
+        if (ref)
+        {
+            reset( ref );
+        }
+        else
+        {
+            reset( wxCFRetain( CFSTR("") ) );
+        }
 #else // not wxUSE_UNICODE
         reset( CFStringCreateWithCString( kCFAllocatorSystemDefault , str.c_str() ,
             wxMacGetSystemEncFromFontEnc( encoding ) ) );
@@ -693,6 +709,8 @@ wxString wxCFStringRef::AsString(wxFontEncoding encoding) const
     return AsString( get(), encoding );
 }
 
+#ifdef __WXMAC__
+
 wxString wxCFStringRef::AsString( NSString* ref, wxFontEncoding encoding )
 {
     return AsString( (CFStringRef) ref, encoding );
@@ -702,6 +720,8 @@ wxString wxCFStringRef::AsStringWithNormalizationFormC( NSString* ref, wxFontEnc
 {
     return AsStringWithNormalizationFormC( (CFStringRef) ref, encoding );
 }
+
+#endif
 
 //
 // wxMacUniCharBuffer

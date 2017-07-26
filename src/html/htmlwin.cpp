@@ -485,7 +485,12 @@ bool wxHtmlWindow::DoSetPage(const wxString& source)
     SetBackgroundColour(wxColour(0xFF, 0xFF, 0xFF));
     SetBackgroundImage(wxNullBitmap);
 
-    m_Parser->SetDC(&dc);
+    double pixelScale = 1.0;
+#ifndef wxHAVE_DPI_INDEPENDENT_PIXELS
+    pixelScale = GetContentScaleFactor();
+#endif
+
+    m_Parser->SetDC(&dc, pixelScale, 1.0);
 
     // notice that it's important to set m_Cell to NULL here before calling
     // Parse() below, even if it will be overwritten by its return value as
@@ -584,7 +589,7 @@ bool wxHtmlWindow::LoadPage(const wxString& location)
         else
         {
             wxList::compatibility_iterator node;
-            wxString src = wxEmptyString;
+            wxString src;
 
 #if wxUSE_STATUSBAR
             if (m_RelatedStatusBarIndex != -1)
@@ -606,7 +611,7 @@ bool wxHtmlWindow::LoadPage(const wxString& location)
                 }
                 node = node->GetNext();
             }
-            if (src == wxEmptyString)
+            if (src.empty())
             {
                 if (m_DefaultFilter == NULL) m_DefaultFilter = GetDefaultFilter();
                 src = m_DefaultFilter->ReadFile(*f);
@@ -615,7 +620,7 @@ bool wxHtmlWindow::LoadPage(const wxString& location)
             m_FS->ChangePathTo(f->GetLocation());
             rt_val = SetPage(src);
             m_OpenedPage = f->GetLocation();
-            if (f->GetAnchor() != wxEmptyString)
+            if (!f->GetAnchor().empty())
             {
                 ScrollToAnchor(f->GetAnchor());
             }
@@ -646,7 +651,7 @@ bool wxHtmlWindow::LoadPage(const wxString& location)
         }
     }
 
-    if (m_OpenedPageTitle == wxEmptyString)
+    if (m_OpenedPageTitle.empty())
         OnSetTitle(wxFileNameFromPath(m_OpenedPage));
 
     if (needs_refresh)
@@ -827,7 +832,7 @@ void wxHtmlWindow::ReadCustomization(wxConfigBase *cfg, wxString path)
     int p_fontsizes[7];
     wxString p_fff, p_ffn;
 
-    if (path != wxEmptyString)
+    if (!path.empty())
     {
         oldpath = cfg->GetPath();
         cfg->SetPath(path);
@@ -843,7 +848,7 @@ void wxHtmlWindow::ReadCustomization(wxConfigBase *cfg, wxString path)
     }
     SetFonts(p_ffn, p_fff, p_fontsizes);
 
-    if (path != wxEmptyString)
+    if (!path.empty())
         cfg->SetPath(oldpath);
 }
 
@@ -854,7 +859,7 @@ void wxHtmlWindow::WriteCustomization(wxConfigBase *cfg, wxString path)
     wxString oldpath;
     wxString tmp;
 
-    if (path != wxEmptyString)
+    if (!path.empty())
     {
         oldpath = cfg->GetPath();
         cfg->SetPath(path);
@@ -869,7 +874,7 @@ void wxHtmlWindow::WriteCustomization(wxConfigBase *cfg, wxString path)
         cfg->Write(tmp, (long) m_Parser->m_FontsSizes[i]);
     }
 
-    if (path != wxEmptyString)
+    if (!path.empty())
         cfg->SetPath(oldpath);
 }
 #endif // wxUSE_CONFIG
@@ -892,7 +897,7 @@ bool wxHtmlWindow::HistoryBack()
     a = (*m_History)[m_HistoryPos].GetAnchor();
     m_HistoryOn = false;
     m_tmpCanDrawLocks++;
-    if (a == wxEmptyString) LoadPage(l);
+    if (a.empty()) LoadPage(l);
     else LoadPage(l + wxT("#") + a);
     m_HistoryOn = true;
     m_tmpCanDrawLocks--;
@@ -922,7 +927,7 @@ bool wxHtmlWindow::HistoryForward()
     a = (*m_History)[m_HistoryPos].GetAnchor();
     m_HistoryOn = false;
     m_tmpCanDrawLocks++;
-    if (a == wxEmptyString) LoadPage(l);
+    if (a.empty()) LoadPage(l);
     else LoadPage(l + wxT("#") + a);
     m_HistoryOn = true;
     m_tmpCanDrawLocks--;
@@ -1147,6 +1152,10 @@ void wxHtmlWindow::OnPaint(wxPaintEvent& WXUNUSED(event))
     GetViewStart(&x, &y);
     const wxRect rect = GetUpdateRegion().GetBox();
     const wxSize sz = GetClientSize();
+
+    // Don't bother drawing the empty window.
+    if ( sz.x == 0 || sz.y == 0 )
+        return;
 
     // set up the DC we're drawing on: if the window is already double buffered
     // we do it directly on wxPaintDC, otherwise we allocate a backing store

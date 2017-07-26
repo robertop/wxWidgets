@@ -59,7 +59,7 @@
 // Regular resources (the non-XRC kind).
 //-----------------------------------------------------------------------------
 
-// the application icon (under Windows and OS/2 it is in resources and even
+// the application icon (under Windows it is in resources and even
 // though we could still include the XPM here it would be unused)
 #ifndef wxHAS_IMAGES_IN_RESOURCES
     #include "../sample.xpm"
@@ -282,7 +282,6 @@ void MyFrame::OnAuiDemoToolOrMenuCommand(wxCommandEvent& WXUNUSED(event))
 #if wxUSE_AUI
     wxDialog dlg;
     wxXmlResource::Get()->LoadDialog(&dlg, this, wxS("aui_dialog"));
-    dlg.SetSize(-1,300);
     dlg.ShowModal();
 #else
     wxLogWarning("wxUSE_AUI must be set to 1 in 'setup.h' to view the AUI demo.");

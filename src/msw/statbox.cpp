@@ -39,6 +39,9 @@
 #include "wx/sysopt.h"
 
 #include "wx/msw/uxtheme.h"
+
+#include <windowsx.h> // needed by GET_X_LPARAM and GET_Y_LPARAM macros
+
 #include "wx/msw/private.h"
 #include "wx/msw/missing.h"
 #include "wx/msw/dc.h"
@@ -76,7 +79,6 @@ bool wxStaticBox::Create(wxWindow *parent,
     if ( !MSWCreateControl(wxT("BUTTON"), label, pos, size) )
         return false;
 
-#ifndef __WXWINCE__
     if (!wxSystemOptions::IsFalse(wxT("msw.staticbox.optimized-paint")))
     {
         Connect(wxEVT_PAINT, wxPaintEventHandler(wxStaticBox::OnPaint));
@@ -85,7 +87,6 @@ bool wxStaticBox::Create(wxWindow *parent,
         // WM_ERASEBKGND too to avoid flicker.
         SetBackgroundStyle(wxBG_STYLE_PAINT);
     }
-#endif // !__WXWINCE__
 
     return true;
 }
@@ -100,7 +101,6 @@ WXDWORD wxStaticBox::MSWGetStyle(long style, WXDWORD *exstyle) const
 
     if ( exstyle )
     {
-#ifndef __WXWINCE__
         // We may have children inside this static box, so use this style for
         // TAB navigation to work if we ever use IsDialogMessage() to implement
         // it (currently we don't because it's too buggy and implement TAB
@@ -109,7 +109,6 @@ WXDWORD wxStaticBox::MSWGetStyle(long style, WXDWORD *exstyle) const
 
         if (wxSystemOptions::IsFalse(wxT("msw.staticbox.optimized-paint")))
             *exstyle |= WS_EX_TRANSPARENT;
-#endif
     }
 
     styleWin |= BS_GROUPBOX;
@@ -154,9 +153,6 @@ void wxStaticBox::GetBordersForSizer(int *borderTop, int *borderOther) const
     // need extra space, don't know how much but this seems to be enough
     *borderTop += GetCharHeight()/3;
 }
-
-// all the hacks below are not necessary for WinCE
-#ifndef __WXWINCE__
 
 WXLRESULT wxStaticBox::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
 {
@@ -479,8 +475,7 @@ void wxStaticBox::PaintForeground(wxDC& dc, const RECT&)
             // the label: this is consistent with the behaviour under pre-XP
             // systems (i.e. without visual themes) and generally makes sense
             wxBrush brush = wxBrush(GetBackgroundColour());
-            wxMSWDCImpl *impl = (wxMSWDCImpl*) dc.GetImpl();
-            ::FillRect(GetHdcOf(*impl), &dimensions, GetHbrushOf(brush));
+            ::FillRect(hdc, &dimensions, GetHbrushOf(brush));
         }
         else // paint parent background
         {
@@ -514,6 +509,11 @@ void wxStaticBox::OnPaint(wxPaintEvent& WXUNUSED(event))
     RECT rc;
     ::GetClientRect(GetHwnd(), &rc);
     wxPaintDC dc(this);
+
+    // No need to do anything if the client rectangle is empty and, worse,
+    // doing it would result in an assert when creating the bitmap below.
+    if ( !rc.right || !rc.bottom )
+        return;
 
     // draw the entire box in a memory DC
     wxMemoryDC memdc(&dc);
@@ -562,7 +562,5 @@ void wxStaticBox::OnPaint(wxPaintEvent& WXUNUSED(event))
     // paint the inside of the box (excluding box itself and child controls)
     PaintBackground(dc, rc);
 }
-
-#endif // !__WXWINCE__
 
 #endif // wxUSE_STATBOX

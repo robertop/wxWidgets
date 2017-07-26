@@ -1206,7 +1206,7 @@ void wxPropertyGridPageState::DoSetColumnProportion( unsigned int column,
                                                  int proportion )
 {
     wxASSERT_MSG( proportion >= 1,
-                  "Column proportion must 1 or higher" );
+                  wxS("Column proportion must 1 or higher") );
 
     if ( proportion < 1 )
         proportion = 1;
@@ -1355,10 +1355,7 @@ bool wxPropertyGridPageState::DoSetPropertyValueWxObjectPtr( wxPGProperty* p, wx
 
 bool wxPropertyGridPageState::DoIsPropertySelected( wxPGProperty* prop ) const
 {
-    if ( wxPGFindInVector(m_selection, prop) != wxNOT_FOUND )
-        return true;
-
-    return false;
+    return m_selection.Index(prop) != wxNOT_FOUND;
 }
 
 // -----------------------------------------------------------------------
@@ -1372,7 +1369,7 @@ void wxPropertyGridPageState::DoRemoveFromSelection( wxPGProperty* prop )
             wxPropertyGrid* pg = m_pPropGrid;
             if ( i == 0 && pg->GetState() == this )
             {
-                // If first item (ie. one with the active editor) was
+                // If first item (i.e. one with the active editor) was
                 // deselected, then we need to take some extra measures.
                 wxArrayPGProperty sel = m_selection;
                 sel.erase( sel.begin() + i );
@@ -1684,7 +1681,7 @@ bool wxPropertyGridPageState::PrepareToAddItem( wxPGProperty* property,
     if ( scheduledParent && !scheduledParent->IsCategory() )
     {
         wxASSERT_MSG( !property->GetBaseName().empty(),
-                      "Property's children must have unique, non-empty names within their scope" );
+                      wxS("Property's children must have unique, non-empty names within their scope") );
     }
 
     property->m_parentState = this;
@@ -1720,7 +1717,7 @@ bool wxPropertyGridPageState::PrepareToAddItem( wxPGProperty* property,
          (!scheduledParent || scheduledParent->IsCategory()) )
     {
         wxFAIL_MSG(wxString::Format(
-            "wxPropertyGrid item with name \"%s\" already exists",
+            wxS("wxPropertyGrid item with name \"%s\" already exists"),
             property->GetName()));
 
         wxPGGlobalVars->m_warnings++;
@@ -1972,7 +1969,7 @@ void wxPropertyGridPageState::DoDelete( wxPGProperty* item, bool doDelete )
 
     wxPropertyGrid* pg = GetGrid();
 
-    // Try to unselect property and its subproperties.
+    // Try to unselect property and its sub-properties.
     if ( DoIsPropertySelected(item) )
     {
         if ( pg && pg->GetState() == this )
@@ -2073,8 +2070,7 @@ void wxPropertyGridPageState::DoDelete( wxPGProperty* item, bool doDelete )
         // We need to find location of item.
         wxPGProperty* cat_parent = &m_regularArray;
         int cat_index = m_regularArray.GetChildCount();
-        size_t i;
-        for ( i = 0; i < m_regularArray.GetChildCount(); i++ )
+        for ( unsigned int i = 0; i < m_regularArray.GetChildCount(); i++ )
         {
             wxPGProperty* p = m_regularArray.Item(i);
             if ( p == item ) { cat_index = i; break; }

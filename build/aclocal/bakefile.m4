@@ -27,7 +27,7 @@ dnl
 
 dnl ---------------------------------------------------------------------------
 dnl Lots of compiler & linker detection code contained here was taken from
-dnl wxWidgets configure.in script (see http://www.wxwidgets.org)
+dnl wxWidgets configure.in script (see https://www.wxwidgets.org)
 dnl ---------------------------------------------------------------------------
 
 
@@ -69,7 +69,6 @@ AC_DEFUN([AC_BAKEFILE_PLATFORM],
 [
     PLATFORM_UNIX=0
     PLATFORM_WIN32=0
-    PLATFORM_MSDOS=0
     PLATFORM_MAC=0
     PLATFORM_MACOS=0
     PLATFORM_MACOSX=0
@@ -79,9 +78,6 @@ AC_DEFUN([AC_BAKEFILE_PLATFORM],
         case "${BAKEFILE_HOST}" in
             *-*-mingw32* )
                 PLATFORM_WIN32=1
-            ;;
-            *-pc-msdosdjgpp )
-                PLATFORM_MSDOS=1
             ;;
             *-*-darwin* )
                 PLATFORM_MAC=1
@@ -103,9 +99,6 @@ AC_DEFUN([AC_BAKEFILE_PLATFORM],
             win32 )
                 PLATFORM_WIN32=1
             ;;
-            msdos )
-                PLATFORM_MSDOS=1
-            ;;
             darwin )
                 PLATFORM_MAC=1
                 PLATFORM_MACOSX=1
@@ -124,7 +117,6 @@ AC_DEFUN([AC_BAKEFILE_PLATFORM],
 
     AC_SUBST(PLATFORM_UNIX)
     AC_SUBST(PLATFORM_WIN32)
-    AC_SUBST(PLATFORM_MSDOS)
     AC_SUBST(PLATFORM_MAC)
     AC_SUBST(PLATFORM_MACOS)
     AC_SUBST(PLATFORM_MACOSX)
@@ -209,11 +201,6 @@ AC_DEFUN([AC_BAKEFILE_SUFFIXES],
             SO_SUFFIX="dll"
             SO_SUFFIX_MODULE="dll"
             DLLIMP_SUFFIX="dll.a"
-            EXEEXT=".exe"
-            DLLPREFIX=""
-            dlldir="$bindir"
-        ;;
-        *-pc-msdosdjgpp )
             EXEEXT=".exe"
             DLLPREFIX=""
             dlldir="$bindir"
@@ -403,8 +390,7 @@ AC_DEFUN([AC_BAKEFILE_SHARED_LD],
       *-*-sunos4* | \
       *-*-osf* | \
       *-*-dgux5* | \
-      *-*-sysv5* | \
-      *-pc-msdosdjgpp )
+      *-*-sysv5* )
         dnl defaults are ok
       ;;
 
@@ -515,10 +501,6 @@ AC_DEFUN([AC_BAKEFILE_DEPS],
             DEPSMODE=gcc
             DEPSFLAG="-MMD"
             AC_MSG_RESULT([gcc])
-        elif test "x$MWCC" = "xyes"; then
-            DEPSMODE=mwcc
-            DEPSFLAG="-MM"
-            AC_MSG_RESULT([mwcc])
         elif test "x$SUNCC" = "xyes"; then
             DEPSMODE=unixcc
             DEPSFLAG="-xM1"
@@ -583,14 +565,14 @@ AC_DEFUN([AC_BAKEFILE_CHECK_BASIC_STUFF],
         AC_SUBST(AR)
     else
         AC_CHECK_TOOL(AR, ar, ar)
-        AROPTIONS=rcu
+        AROPTIONS=rc
     fi
     AC_SUBST(AROPTIONS)
 
     AC_CHECK_TOOL(STRIP, strip, :)
     AC_CHECK_TOOL(NM, nm, :)
 
-    dnl Don't use `install -d`, see http://trac.wxwidgets.org/ticket/13452
+    dnl Don't use `install -d`, see https://trac.wxwidgets.org/ticket/13452
     INSTALL_DIR="mkdir -p"
     AC_SUBST(INSTALL_DIR)
 
@@ -857,34 +839,6 @@ if test ${D}DEPSMODE = gcc ; then
     fi
     exit 0
 
-elif test ${D}DEPSMODE = mwcc ; then
-    ${D}* || exit ${D}?
-    # Run mwcc again with -MM and redirect into the dep file we want
-    # NOTE: We can't use shift here because we need ${D}* to be valid
-    prevarg=
-    for arg in ${D}* ; do
-        if test "${D}prevarg" = "-o"; then
-            objfile=${D}arg
-        else
-            case "${D}arg" in
-                -* )
-                ;;
-                * )
-                    srcfile=${D}arg
-                ;;
-            esac
-        fi
-        prevarg="${D}arg"
-    done
-
-    objfilebase=\`basename ${D}objfile\`
-    builddir=\`dirname ${D}objfile\`
-    depsdir=${D}builddir/${D}DEPSDIRBASE
-    mkdir -p ${D}depsdir
-
-    ${D}* ${D}DEPSFLAG >${D}{depsdir}/${D}{objfilebase}.d
-    exit 0
-
 elif test ${D}DEPSMODE = unixcc; then
     ${D}* || exit ${D}?
     # Run compiler again with deps flag and redirect into the dep file.
@@ -960,7 +914,7 @@ while test ${D}# -gt 0; do
         args="${D}{args} ${D}1 ${D}2"
         shift
         ;;
-       
+
        -arch|-isysroot)
         # collect these options and values
         ldargs="${D}{ldargs} ${D}1 ${D}2"

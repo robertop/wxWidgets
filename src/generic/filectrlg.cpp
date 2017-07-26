@@ -38,9 +38,7 @@
     #include "wx/msw/wrapwin.h"
 #endif
 
-#if defined(__WXWINCE__)
-#define IsTopMostDir(dir) (dir == wxT("\\") || dir == wxT("/"))
-#elif defined(__DOS__) || defined(__WINDOWS__)
+#if defined(__WINDOWS__)
 #define IsTopMostDir(dir)   (dir.empty())
 #else
 #define IsTopMostDir(dir)   (dir == wxT("/"))
@@ -175,7 +173,7 @@ void wxFileData::ReadData()
         return;
     }
 
-#if defined(__DOS__) || (defined(__WINDOWS__) && !defined(__WXWINCE__))
+#if defined(__WINDOWS__)
     // c:\.. is a drive don't stat it
     if ((m_fileName == wxT("..")) && (m_filePath.length() <= 5))
     {
@@ -183,39 +181,7 @@ void wxFileData::ReadData()
         m_size = 0;
         return;
     }
-#endif // __DOS__ || __WINDOWS__
-
-#ifdef __WXWINCE__
-
-    // WinCE
-
-    DWORD fileAttribs = GetFileAttributes(m_filePath.fn_str());
-    m_type |= (fileAttribs & FILE_ATTRIBUTE_DIRECTORY) != 0 ? is_dir : 0;
-
-    wxString p, f, ext;
-    wxFileName::SplitPath(m_filePath, & p, & f, & ext);
-    if (wxStricmp(ext, wxT("exe")) == 0)
-        m_type |= is_exe;
-
-    // Find out size
-    m_size = 0;
-    HANDLE fileHandle = CreateFile(m_filePath.fn_str(),
-            GENERIC_READ,
-            FILE_SHARE_READ,
-            NULL,
-            OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
-            NULL);
-
-    if (fileHandle != INVALID_HANDLE_VALUE)
-    {
-        m_size = GetFileSize(fileHandle, 0);
-        CloseHandle(fileHandle);
-    }
-
-    m_dateTime = wxFileModificationTime(m_filePath);
-
-#else
+#endif // __WINDOWS__
 
     // OTHER PLATFORMS
 
@@ -238,8 +204,6 @@ void wxFileData::ReadData()
 
         m_dateTime = buff.st_mtime;
     }
-#endif
-    // __WXWINCE__
 
 #if defined(__UNIX__)
     if ( hasStat )
@@ -400,6 +364,7 @@ wxBEGIN_EVENT_TABLE(wxFileListCtrl,wxListCtrl)
     EVT_LIST_DELETE_ALL_ITEMS(wxID_ANY, wxFileListCtrl::OnListDeleteAllItems)
     EVT_LIST_END_LABEL_EDIT(wxID_ANY, wxFileListCtrl::OnListEndLabelEdit)
     EVT_LIST_COL_CLICK(wxID_ANY, wxFileListCtrl::OnListColClick)
+    EVT_SIZE (wxFileListCtrl::OnSize)
 wxEND_EVENT_TABLE()
 
 
@@ -457,7 +422,7 @@ void wxFileListCtrl::ChangeToReportMode()
     GetTextExtent(txt, &w, &h);
 
     InsertColumn( 0, _("Name"), wxLIST_FORMAT_LEFT, w );
-    InsertColumn( 1, _("Size"), wxLIST_FORMAT_LEFT, w/2 );
+    InsertColumn( 1, _("Size"), wxLIST_FORMAT_RIGHT, w/2 );
     InsertColumn( 2, _("Type"), wxLIST_FORMAT_LEFT, w/2 );
     InsertColumn( 3, _("Modified"), wxLIST_FORMAT_LEFT, w );
 #if defined(__UNIX__)
@@ -534,7 +499,7 @@ void wxFileListCtrl::UpdateFiles()
     item.m_itemId = 0;
     item.m_col = 0;
 
-#if (defined(__WINDOWS__) || defined(__DOS__) || defined(__WXMAC__)) && !defined(__WXWINCE__)
+#if defined(__WINDOWS__) || defined(__WXMAC__)
     if ( IsTopMostDir(m_dirName) )
     {
         wxArrayString names, paths;
@@ -563,13 +528,13 @@ void wxFileListCtrl::UpdateFiles()
         }
     }
     else
-#endif // defined(__DOS__) || defined(__WINDOWS__)
+#endif // defined(__WINDOWS__) || defined(__WXMAC__)
     {
         // Real directory...
         if ( !IsTopMostDir(m_dirName) && !m_dirName.empty() )
         {
             wxString p(wxPathOnly(m_dirName));
-#if (defined(__UNIX__) || defined(__WXWINCE__))
+#if defined(__UNIX__)
             if (p.empty()) p = wxT("/");
 #endif // __UNIX__
             wxFileData *fd = new wxFileData(p, wxT(".."), wxFileData::is_dir, wxFileIconsTable::folder);
@@ -580,10 +545,10 @@ void wxFileListCtrl::UpdateFiles()
         }
 
         wxString dirname(m_dirName);
-#if defined(__DOS__) || defined(__WINDOWS__)
+#if defined(__WINDOWS__)
         if (dirname.length() == 2 && dirname[1u] == wxT(':'))
             dirname << wxT('\\');
-#endif // defined(__DOS__) || defined(__WINDOWS__)
+#endif // defined(__WINDOWS__)
 
         if (dirname.empty())
             dirname = wxFILE_SEP_PATH;
@@ -705,7 +670,7 @@ void wxFileListCtrl::GoToParentDir()
             m_dirName.Remove( len-1, 1 );
         wxString fname( wxFileNameFromPath(m_dirName) );
         m_dirName = wxPathOnly( m_dirName );
-#if defined(__DOS__) || defined(__WINDOWS__)
+#if defined(__WINDOWS__)
         if (!m_dirName.empty())
         {
             if (m_dirName.Last() == wxT('.'))
@@ -845,6 +810,25 @@ void wxFileListCtrl::OnListColClick( wxListEvent &event )
     SortItems(m_sort_field, m_sort_forward);
 }
 
+void wxFileListCtrl::OnSize( wxSizeEvent &event )
+{
+    event.Skip();
+
+    if ( InReportView() )
+    {
+        // In report mode, set name column to use remaining width.
+        int newNameWidth = GetClientSize().GetWidth();
+        for ( int i = 1; i < GetColumnCount(); i++ )
+        {
+            newNameWidth -= GetColumnWidth(i);
+            if ( newNameWidth <= 0 )
+                return;
+        }
+
+        SetColumnWidth(0, newNameWidth);
+    }
+}
+
 void wxFileListCtrl::SortItems(wxFileData::fileListFieldType field, bool forward)
 {
     m_sort_field = field;
@@ -963,11 +947,7 @@ bool wxGenericFileCtrl::Create( wxWindow *parent,
     if ( !( m_style & wxFC_MULTIPLE ) )
         style2 |= wxLC_SINGLE_SEL;
 
-#ifdef __WXWINCE__
-    style2 |= wxSIMPLE_BORDER;
-#else
     style2 |= wxSUNKEN_BORDER;
-#endif
 
     m_list = new wxFileListCtrl( this, ID_FILELIST_CTRL,
                                  wxEmptyString, false,
@@ -1294,10 +1274,6 @@ void wxGenericFileCtrl::OnSelected( wxListEvent &event )
     m_inSelected = true;
     const wxString filename( event.m_item.m_text );
 
-#ifdef __WXWINCE__
-    // No double-click on most WinCE devices, so do action immediately.
-    HandleAction( filename );
-#else
     if ( filename == wxT( ".." ) )
     {
         m_inSelected = false;
@@ -1328,7 +1304,6 @@ void wxGenericFileCtrl::OnSelected( wxListEvent &event )
         GenerateSelectionChangedEvent( this, this );
 
     m_ignoreChanges = false;
-#endif
     m_inSelected = false;
 }
 

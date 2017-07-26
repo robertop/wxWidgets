@@ -46,12 +46,6 @@
 // macros and constants
 // ----------------------------------------------------------------------------
 
-#ifdef __WIN32__
-    #define _EXPORT
-#else
-    #define _EXPORT _export
-#endif
-
 #if wxUSE_UNICODE
     #define DDE_CP      CP_WINUNICODE
 #else
@@ -71,14 +65,15 @@ static wxDDEConnection *DDEFindConnection(HCONV hConv);
 static void DDEDeleteConnection(HCONV hConv);
 static wxDDEServer *DDEFindServer(const wxString& s);
 
-extern "C" HDDEDATA EXPENTRY _EXPORT _DDECallback(WORD wType,
-                                                  WORD wFmt,
-                                                  HCONV hConv,
-                                                  HSZ hsz1,
-                                                  HSZ hsz2,
-                                                  HDDEDATA hData,
-                                                  DWORD lData1,
-                                                  DWORD lData2);
+extern "C" HDDEDATA EXPENTRY
+_DDECallback(WORD wType,
+             WORD wFmt,
+             HCONV hConv,
+             HSZ hsz1,
+             HSZ hsz2,
+             HDDEDATA hData,
+             DWORD lData1,
+             DWORD lData2);
 
 // Add topic name to atom table before using in conversations
 static HSZ DDEAddAtom(const wxString& string);
@@ -125,8 +120,8 @@ class wxDDEModule : public wxModule
 {
 public:
     wxDDEModule() {}
-    bool OnInit() { return true; }
-    void OnExit() { wxDDECleanUp(); }
+    bool OnInit() wxOVERRIDE { return true; }
+    void OnExit() wxOVERRIDE { wxDDECleanUp(); }
 
 private:
     wxDECLARE_DYNAMIC_CLASS(wxDDEModule);
@@ -777,7 +772,7 @@ bool wxDDEConnection::DoAdvise(const wxString& item,
 
 #define DDERETURN HDDEDATA
 
-HDDEDATA EXPENTRY _EXPORT
+HDDEDATA EXPENTRY
 _DDECallback(WORD wType,
              WORD wFmt,
              HCONV hConv,
@@ -889,18 +884,20 @@ _DDECallback(WORD wType,
                                                              (wxIPCFormat)wFmt);
                     if (data)
                     {
-                      if (user_size == wxNO_LEN)
-                        switch (wFmt)
+                        if (user_size == wxNO_LEN)
                         {
-                          case wxIPC_TEXT:
-                          case wxIPC_UTF8TEXT:
-                            user_size = strlen((const char*)data) + 1;  // includes final NUL
-                            break;
-                          case wxIPC_UNICODETEXT:
-                            user_size = (wcslen((const wchar_t*)data) + 1) * sizeof(wchar_t);  // includes final NUL
-                            break;
-                          default:
-                            user_size = 0;
+                            switch (wFmt)
+                            {
+                                case wxIPC_TEXT:
+                                case wxIPC_UTF8TEXT:
+                                    user_size = strlen((const char*)data) + 1;  // includes final NUL
+                                    break;
+                                case wxIPC_UNICODETEXT:
+                                    user_size = (wcslen((const wchar_t*)data) + 1) * sizeof(wchar_t);  // includes final NUL
+                                    break;
+                                default:
+                                    user_size = 0;
+                            }
                         }
 
                         HDDEDATA handle = DdeCreateDataHandle(DDEIdInst,

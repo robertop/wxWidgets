@@ -8,12 +8,22 @@
 // For compilers that support precompilation, includes "wx.h".
 #include "wx/wxprec.h"
 
+#ifdef __BORLANDC__
+    #pragma hdrstop
+#endif
+
+#include <QtGui/QBitmap>
+
+#ifndef WX_PRECOMP
+    #include "wx/icon.h"
+    #include "wx/log.h"
+#endif // WX_PRECOMP
+
 #include "wx/dc.h"
-#include "wx/icon.h"
 #include "wx/qt/dc.h"
 #include "wx/qt/private/converter.h"
 #include "wx/qt/private/utils.h"
-#include <QtGui/QBitmap>
+
 
 static void SetPenColour( QPainter *qtPainter, QColor col )
 {
@@ -399,9 +409,6 @@ void wxQtDCImpl::DoSetDeviceClippingRegion(const wxRegion& region)
         QTransform qtrans = m_qtPainter->worldTransform();
         // Reset transofrmation to match device coordinates
         m_qtPainter->setWorldTransform( QTransform() );
-        wxLogDebug(wxT("wxQtDCImpl::DoSetDeviceClippingRegion rect %d %d %d %d"),
-                   qregion.boundingRect().x(), qregion.boundingRect().y(),
-                   qregion.boundingRect().width(), qregion.boundingRect().height());
         // Set QPainter clipping (intersection if not the first one)
         m_qtPainter->setClipRegion( qregion,
                                  m_clipping ? Qt::IntersectClip : Qt::ReplaceClip );

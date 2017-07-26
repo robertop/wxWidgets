@@ -194,6 +194,7 @@ library:
 @itemdef{wxUSE_PROTOCOL_HTTP, Use wxHTTP class. (requireswxProtocol)}
 @itemdef{wxUSE_RADIOBOX, Use wxRadioBox class.}
 @itemdef{wxUSE_RADIOBTN, Use wxRadioButton class.}
+@itemdef{wxUSE_REPRODUCIBLE_BUILD, Make library builds reproducible.}
 @itemdef{wxUSE_REGEX, Use wxRegEx class.}
 @itemdef{wxUSE_RICHTEXT, Use wxRichTextCtrl class.}
 @itemdef{wxUSE_RICHTEXT_XML_HANDLER, See src/xrc/xh_richtext.cpp file.}
@@ -267,6 +268,7 @@ library:
 @itemdef{wxUSE_LIBSDL, Use SDL for wxSound implementation.}
 @itemdef{wxUSE_PLUGINS, See also wxUSE_LIBSDL.}
 @itemdef{wxUSE_UNIX, Enabled on Unix Platform.}
+@itemdef(wxUSE_XTEST, Use XTest extension.}
 @endDefList
 
 
@@ -284,7 +286,6 @@ library:
 @itemdef{wxUSE_DETECT_SM, Use code to detect X11 session manager.}
 @itemdef{wxUSE_GTKPRINT, Use GTK+ printing support.}
 @itemdef{wxUSE_LIBGNOMEVFS, Use GNOME VFS support. Currently has no effect. }
-@itemdef{wxUSE_LIBHILDON, Use Hildon framework for Nokia 770. Currently has no effect. }
 @endDefList
 
 
@@ -334,7 +335,6 @@ manifest from wxWidgets RC file. See also wxUSE_RC_MANIFEST.}
 @itemdef{wxUSE_OLE, Enables OLE helper routines.}
 @itemdef{wxUSE_OLE_AUTOMATION, Enable OLE automation utilities.}
 @itemdef{wxUSE_OLE_CLIPBOARD, Use OLE clipboard.}
-@itemdef{wxUSE_PENWINDOWS, See src/msw/penwin.cpp file.}
 @itemdef{wxUSE_POSTSCRIPT_ARCHITECTURE_IN_MSW, Use PS printing in wxMSW.}
 @itemdef{wxUSE_PS_PRINTING, See src/msw/dcprint.cpp file.}
 @itemdef{wxUSE_RC_MANIFEST, Include manifest for common controls library v6
@@ -348,6 +348,7 @@ compilers. See also wxUSE_NO_MANIFEST.}
 @itemdef{wxUSE_VC_CRTDBG, See wx/msw/msvcrt.h file.}
 @itemdef{wxUSE_UXTHEME, Enable support for XP themes.}
 @itemdef{wxUSE_WIN_METAFILES_ALWAYS, Use wxMetaFile even when wxUSE_ENH_METAFILE=1.}
+@itemdef{wxUSE_WINRT, Enable WinRT support.}
 @itemdef{wxUSE_WXDIB, Use wxDIB class.}
 @endDefList
 
