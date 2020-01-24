@@ -4,11 +4,13 @@ on: [push]
 
 jobs:
   build:
-
+    env: 
+      wxCONFIGURE_FLAGS: --enable-utf8 --enable-utf8only --enable-monolithic" wxUSE_XVFB=1
     runs-on: ubuntu-16.04
-    
     steps:
     - uses: actions/checkout@v1
+      with:
+        submodules: true
     - name: before install
       run: ./build/tools/before_install.sh
     - name: build
