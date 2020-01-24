@@ -4,7 +4,7 @@
 // Author:      Vadim Zeitlin
 // Modified by:
 // Created:     19.06.2003 (extracted from common/appcmn.cpp)
-// Copyright:   (c) 2003 Vadim Zeitlin <vadim@wxwindows.org>
+// Copyright:   (c) 2003 Vadim Zeitlin <vadim@wxwidgets.org>
 // Licence:     wxWindows licence
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -173,7 +173,7 @@ wxAppConsoleBase::wxAppConsoleBase()
     m_mainLoop = NULL;
     m_bDoPendingEventProcessing = true;
 
-    ms_appInstance = static_cast<wxAppConsole *>(this);
+    ms_appInstance = reinterpret_cast<wxAppConsole *>(this);
 
 #ifdef __WXDEBUG__
     SetTraceMasks();
@@ -302,7 +302,7 @@ int wxAppConsoleBase::OnRun()
 }
 
 void wxAppConsoleBase::OnLaunched()
-{    
+{
 }
 
 int wxAppConsoleBase::OnExit()
@@ -376,7 +376,7 @@ int wxAppConsoleBase::MainLoop()
 
     if (wxTheApp)
         wxTheApp->OnLaunched();
-    
+
     return m_mainLoop ? m_mainLoop->Run() : -1;
 }
 
@@ -1307,7 +1307,7 @@ bool DoShowAssertDialog(const wxString& msg)
               wxT("further warnings.");
 
     switch ( ::MessageBox(NULL, msgDlg.t_str(), wxT("wxWidgets Debug Alert"),
-                          MB_YESNOCANCEL | MB_ICONSTOP ) )
+                          MB_YESNOCANCEL | MB_DEFBUTTON2 | MB_ICONSTOP ) )
     {
         case IDYES:
             // If we called wxTrap() directly from here, the programmer would

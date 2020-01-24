@@ -23,7 +23,18 @@
 
 #if defined(__CYGWIN__)
     #include <winsock.h>
+    #ifdef __LP64__
+        // We can't use long in this case because it is 64 bits with Cygwin, so
+        // use their special type used for working around this instead.
+        #define wxIoctlSocketArg_t __ms_u_long
+    #endif
 #endif
+
+#ifndef wxIoctlSocketArg_t
+    #define wxIoctlSocketArg_t u_long
+#endif
+
+#define wxCloseSocket closesocket
 
 // ----------------------------------------------------------------------------
 // MSW-specific socket implementation
@@ -46,10 +57,7 @@ public:
         // anything here
     }
 
-private:
-    virtual void DoClose() wxOVERRIDE;
-
-    virtual void UnblockAndRegisterWithEventLoop() wxOVERRIDE
+    virtual void UpdateBlockingState() wxOVERRIDE
     {
         if ( GetSocketFlags() & wxSOCKET_BLOCK )
         {
@@ -61,8 +69,11 @@ private:
             // just useless) as they would be dispatched by the main thread
             // while this blocking socket can be used from a worker one, so it
             // would result in data races and other unpleasantness.
-            unsigned long trueArg = 1;
+            wxIoctlSocketArg_t trueArg = 1;
             ioctlsocket(m_fd, FIONBIO, &trueArg);
+
+            // Uninstall it in case it was installed before.
+            wxSocketManager::Get()->Uninstall_Callback(this);
         }
         else
         {
@@ -71,6 +82,9 @@ private:
             wxSocketManager::Get()->Install_Callback(this);
         }
     }
+
+private:
+    virtual void DoClose() wxOVERRIDE;
 
     int m_msgnumber;
 

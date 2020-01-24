@@ -70,7 +70,6 @@ static HBITMAP GetMaskForImage(const wxBitmap& bitmap, const wxBitmap& mask);
 wxImageList::wxImageList()
 {
     m_hImageList = 0;
-    m_size = wxSize(0,0);
 }
 
 // Creates an image list
@@ -461,11 +460,10 @@ wxIcon wxImageList::GetIcon(int index) const
     if (hIcon)
     {
         wxIcon icon;
-        icon.SetHICON((WXHICON)hIcon);
 
         int iconW, iconH;
         GetSize(index, iconW, iconH);
-        icon.SetSize(iconW, iconH);
+        icon.InitFromHICON((WXHICON)hIcon, iconW, iconH);
 
         return icon;
     }

@@ -3,7 +3,7 @@
 // Purpose:     various Win32 debug helpers
 // Author:      Vadim Zeitlin, Suzumizaki-kimitaka
 // Created:     2005-01-08 (extracted from crashrpt.cpp)
-// Copyright:   (c) 2003-2005 Vadim Zeitlin <vadim@wxwindows.org>
+// Copyright:   (c) 2003-2005 Vadim Zeitlin <vadim@wxwidgets.org>
 // Licence:     wxWindows licence
 /////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +66,7 @@ class VarSizedStruct
 public:
     VarSizedStruct()
     {
-        ::ZeroMemory(m_buffer, sizeof(T) + MAX_NAME_LEN);
+        ::ZeroMemory(m_buffer, sizeof(T) + MAX_NAME_LEN*sizeof(TCHAR));
 
         (*this)->SizeOfStruct = sizeof(T);
         (*this)->MaxNameLen = MAX_NAME_LEN;
@@ -87,7 +87,7 @@ private:
     // if we wanted.
     enum { MAX_NAME_LEN = 1024 };
 
-    BYTE m_buffer[sizeof(T) + MAX_NAME_LEN];
+    BYTE m_buffer[sizeof(T) + MAX_NAME_LEN*sizeof(TCHAR)];
 };
 
 } // anonymous namespace

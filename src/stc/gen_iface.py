@@ -78,7 +78,8 @@ notMappedSciValues = set([
     'INDIC0_MASK',
     'INDIC1_MASK',
     'INDIC2_MASK',
-    'INDICS_MASK'
+    'INDICS_MASK',
+    'SCFIND_CXX11REGEX'
 ])
 
 # Map some generic typenames to wx types, using return value syntax
@@ -213,23 +214,11 @@ methodOverrideMap = {
     ),
 
 
-    'MarkerDefinePixmap' :
-    ('MarkerDefineBitmap',
-     '''void %s(int markerNumber, const wxBitmap& bmp);''',
-     '''void %s(int markerNumber, const wxBitmap& bmp) {
-        // convert bmp to a xpm in a string
-        wxMemoryOutputStream strm;
-        wxImage img = bmp.ConvertToImage();
-        if (img.HasAlpha())
-            img.ConvertAlphaToMask();
-        img.SaveFile(strm, wxBITMAP_TYPE_XPM);
-        size_t len = strm.GetSize();
-        char* buff = new char[len+1];
-        strm.CopyTo(buff, len);
-        buff[len] = 0;
-        SendMsg(%s, markerNumber, (sptr_t)buff);
-        delete [] buff;
-        '''
+   'MarkerDefinePixmap' :
+    (0,
+     '''void %s(int markerNumber, const char* const* xpmData);''',
+     '''void %s(int markerNumber, const char* const* xpmData) {
+        SendMsg(%s, markerNumber, (sptr_t)xpmData);'''
     ),
 
     'GetMargins' : ('GetMarginCount', 0, 0),
@@ -539,21 +528,9 @@ methodOverrideMap = {
 
     'RegisterImage' :
     (0,
-     '''void %s(int type, const wxBitmap& bmp);''',
-     '''void %s(int type, const wxBitmap& bmp) {
-        // convert bmp to a xpm in a string
-        wxMemoryOutputStream strm;
-        wxImage img = bmp.ConvertToImage();
-        if (img.HasAlpha())
-            img.ConvertAlphaToMask();
-        img.SaveFile(strm, wxBITMAP_TYPE_XPM);
-        size_t len = strm.GetSize();
-        char* buff = new char[len+1];
-        strm.CopyTo(buff, len);
-        buff[len] = 0;
-        SendMsg(%s, type, (sptr_t)buff);
-        delete [] buff;
-     '''
+     '''void %s(int type, const char* const* xpmData);''',
+     '''void %s(int type, const char* const* xpmData) {
+        SendMsg(%s, type, (sptr_t)xpmData);'''
     ),
 
     'SetHScrollBar' : ('SetUseHorizontalScrollBar', 0, 0),
@@ -895,8 +872,6 @@ methodOverrideMap = {
          return stc2wx(buf);'''
     ),
 
-    'SetFontQuality' : (None, 0, 0),
-    'GetFontQuality' : (None, 0, 0),
     'SetSelection' : (None, 0, 0),
 
     'GetCharacterPointer' : (0,
@@ -1051,7 +1026,7 @@ methodOverrideMap = {
     (0,
      'void* %s(int bytes) const;',
      """void* %s(int bytes) const {
-         return (void*)(sptr_t)SendMsg(%s, bytes); """
+         return (void*)(sptr_t)SendMsg(%s, bytes);"""
     ),
 
     'GetRepresentation' :
@@ -1072,7 +1047,7 @@ methodOverrideMap = {
      (0,
       'void* %s(int operation, void* pointer);',
       """void* %s(int operation, void* pointer) {
-           return (void*)(sptr_t)SendMsg(%s, operation, (sptr_t)pointer); """
+           return (void*)(sptr_t)SendMsg(%s, operation, (sptr_t)pointer);"""
      ),
 
     'GetSubStyleBases' :

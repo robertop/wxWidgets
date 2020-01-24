@@ -51,6 +51,7 @@ bool wxListKey::operator==(wxListKeyValue value) const
             wxFAIL_MSG(wxT("bad key type."));
             // let compiler optimize the line above away in release build
             // by not putting return here...
+            wxFALLTHROUGH;
 
         case wxKEY_STRING:
             return *m_key.string == *value.string;
@@ -144,16 +145,6 @@ void wxListBase::Init(wxKeyType keyType)
   m_count = 0;
   m_destroy = false;
   m_keyType = keyType;
-}
-
-wxListBase::wxListBase(size_t count, void *elements[])
-{
-  Init();
-
-  for ( size_t n = 0; n < count; n++ )
-  {
-      Append(elements[n]);
-  }
 }
 
 void wxListBase::DoCopy(const wxListBase& list)
@@ -360,7 +351,7 @@ void wxListBase::DoDeleteNode(wxNodeBase *node)
     // free node's data
     if ( m_keyType == wxKEY_STRING )
     {
-        free(node->m_key.string);
+        wxDELETE(node->m_key.string);
     }
 
     if ( m_destroy )

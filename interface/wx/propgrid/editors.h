@@ -136,12 +136,21 @@ public:
         Default implementation  sets foreground colour, background colour,
         font, plus text for wxTextCtrl and wxComboCtrl.
 
+        @param pg
+            Property grid to which the edited property belongs.
+
+        @param property
+            Edited property to which the editor control belongs.
+
+        @param ctrl
+            Editor control.
+
         @param appearance
             New appearance to be applied.
 
         @param oldAppearance
-            Previously applied appearance.  Used to detect which control
-            attributes need to be changed (e.g. so we onlychange background
+            Previously applied appearance. Used to detect which control
+            attributes need to be changed (e.g. so we only change background
             colour if really needed).
 
         @param unspecified
@@ -427,7 +436,7 @@ public:
     class wxSampleMultiButtonEditor : public wxPGTextCtrlEditor
     {
         wxDECLARE_DYNAMIC_CLASS(wxSampleMultiButtonEditor);
-        
+
     public:
         wxSampleMultiButtonEditor() {}
         virtual ~wxSampleMultiButtonEditor() {}
@@ -578,35 +587,9 @@ public:
     wxSize GetPrimarySize() const;
 };
 
-/** @class wxPGEditorDialogAdapter
-
-    Derive a class from this to adapt an existing editor dialog or function to
-    be used when editor button of a property is pushed.
-
-    You only need to derive class and implement DoShowDialog() to create and
-    show the dialog, and finally submit the value returned by the dialog
-    via SetValue().
-
-    @library{wxpropgrid}
-    @category{propgrid}
-*/
-class wxPGEditorDialogAdapter : public wxObject
-{
-public:
-    wxPGEditorDialogAdapter();
-
-    virtual ~wxPGEditorDialogAdapter();
-
-    bool ShowDialog( wxPropertyGrid* propGrid, wxPGProperty* property );
-
-    virtual bool DoShowDialog( wxPropertyGrid* propGrid,
-                               wxPGProperty* property ) = 0;
-
-    void SetValue( wxVariant value );
-
-    /**
-        This method is typically only used if deriving class from existing
-        adapter with value conversion purposes.
-    */
-    wxVariant& GetValue();
-};
+extern wxPGEditor* wxPGEditor_TextCtrl;
+extern wxPGEditor* wxPGEditor_Choice;
+extern wxPGEditor* wxPGEditor_ComboBox;
+extern wxPGEditor* wxPGEditor_TextCtrlAndButton;
+extern wxPGEditor* wxPGEditor_CheckBox;
+extern wxPGEditor* wxPGEditor_ChoiceAndButton;

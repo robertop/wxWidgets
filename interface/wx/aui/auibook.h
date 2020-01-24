@@ -361,7 +361,7 @@ public:
     /**
         Sets the page selection.  Calling this method will generate a page change event.
     */
-    size_t SetSelection(size_t new_page);
+    int SetSelection(size_t new_page);
 
     /**
         Sets the tab height. By default, the tab control height is calculated
@@ -405,6 +405,29 @@ public:
         Returns the image index for the given page.
     */
     virtual int GetPageImage(size_t nPage) const;
+
+    /**
+        Returns tab control based on point coordinates inside the tab frame.
+
+        @since 3.1.4
+    */
+    wxAuiTabCtrl* GetTabCtrlFromPoint(const wxPoint& pt);
+
+    /**
+        Returns active tab control for this notebook.
+
+        @since 3.1.4
+    */
+    wxAuiTabCtrl* GetActiveTabCtrl();
+
+    /**
+        Finds tab control associated with a given window and its tab index.
+
+        @return @true when the tab control is found, @false otherwise.
+
+        @since 3.1.4
+    */
+    bool FindTab(wxWindow* page, wxAuiTabCtrl** ctrl, int* idx);
 };
 
 

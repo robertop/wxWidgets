@@ -80,7 +80,7 @@ static gboolean
 wxgtk_webview_webkit_navigation(WebKitWebView *,
                                 WebKitWebFrame *frame,
                                 WebKitNetworkRequest *request,
-                                WebKitWebNavigationAction *,
+                                WebKitWebNavigationAction *action,
                                 WebKitWebPolicyDecision *policy_decision,
                                 wxWebViewWebKit *webKitCtrl)
 {
@@ -92,10 +92,18 @@ wxgtk_webview_webkit_navigation(WebKitWebView *,
     if(webKitCtrl->m_creating)
     {
         webKitCtrl->m_creating = false;
+
+        WebKitWebNavigationReason reason =
+                                  webkit_web_navigation_action_get_reason(action);
+        wxWebViewNavigationActionFlags flags = wxWEBVIEW_NAV_ACTION_USER;
+
+        if(reason == WEBKIT_WEB_NAVIGATION_REASON_OTHER)
+            flags = wxWEBVIEW_NAV_ACTION_OTHER;
+
         wxWebViewEvent event(wxEVT_WEBVIEW_NEWWINDOW,
                              webKitCtrl->GetId(),
                              wxString(uri, wxConvUTF8),
-                             target);
+                             target, flags);
 
         webKitCtrl->HandleWindowEvent(event);
 
@@ -302,17 +310,24 @@ static gboolean
 wxgtk_webview_webkit_new_window(WebKitWebView*,
                                 WebKitWebFrame *frame,
                                 WebKitNetworkRequest *request,
-                                WebKitWebNavigationAction*,
+                                WebKitWebNavigationAction* action,
                                 WebKitWebPolicyDecision *policy_decision,
                                 wxWebViewWebKit *webKitCtrl)
 {
     const gchar* uri = webkit_network_request_get_uri(request);
-
     wxString target = webkit_web_frame_get_name (frame);
+
+    WebKitWebNavigationReason reason = webkit_web_navigation_action_get_reason(action);
+
+    wxWebViewNavigationActionFlags flags = wxWEBVIEW_NAV_ACTION_USER;
+
+    if(reason == WEBKIT_WEB_NAVIGATION_REASON_OTHER)
+        flags = wxWEBVIEW_NAV_ACTION_OTHER;
+
     wxWebViewEvent event(wxEVT_WEBVIEW_NEWWINDOW,
                                        webKitCtrl->GetId(),
                                        wxString( uri, wxConvUTF8 ),
-                                       target);
+                                       target, flags);
 
     webKitCtrl->HandleWindowEvent(event);
 
@@ -949,10 +964,21 @@ wxString wxWebViewWebKit::GetPageText() const
                     wxConvUTF8);
 }
 
-void wxWebViewWebKit::RunScript(const wxString& javascript)
+bool wxWebViewWebKit::RunScript(const wxString& javascript, wxString* output)
 {
+    wxCHECK_MSG( m_web_view, false,
+        wxS("wxWebView must be created before calling RunScript()") );
+
+    if ( output != NULL )
+    {
+        wxLogWarning(_("Retrieving JavaScript script output is not supported with WebKit v1"));
+        return false;
+    }
+
     webkit_web_view_execute_script(m_web_view,
                                    javascript.mb_str(wxConvUTF8));
+
+    return true;
 }
 
 void wxWebViewWebKit::RegisterHandler(wxSharedPtr<wxWebViewHandler> handler)

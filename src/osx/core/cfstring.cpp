@@ -20,50 +20,26 @@
 #endif
 
 #include "wx/osx/core/cfstring.h"
+#include "wx/osx/core/cfdataref.h"
 
 #include <CoreFoundation/CoreFoundation.h>
-
-
-void wxMacConvertNewlines13To10( char * data )
-{
-    char * buf = data ;
-    while( (buf=strchr(buf,0x0d)) != NULL )
-    {
-        *buf = 0x0a ;
-        buf++ ;
-    }
-}
-
-void wxMacConvertNewlines13To10( wxChar16 * data )
-{
-    for ( ; *data; ++data )
-    {
-        if ( *data == 0x0d )
-            *data = 0x0a;
-    }
-}
-
-void wxMacConvertNewlines10To13( char * data )
-{
-    char * buf = data ;
-    while( (buf=strchr(buf,0x0a)) != NULL )
-    {
-        *buf = 0x0d ;
-        buf++ ;
-    }
-}
+#include <CoreFoundation/CFData.h>
 
 const wxString sCR((wxChar)13);
 const wxString sLF((wxChar)10);
 
-void wxMacConvertNewlines13To10( wxString * data )
+wxString wxMacConvertNewlines13To10(const wxString& data)
 {
-    data->Replace( sCR,sLF);
+    wxString string(data);
+    string.Replace(sCR, sLF);
+    return string;
 }
 
-void wxMacConvertNewlines10To13( wxString * data )
+wxString wxMacConvertNewlines10To13(const wxString& data)
 {
-    data->Replace( sLF,sCR);
+    wxString string(data);
+    string.Replace(sLF, sCR);
+    return string;
 }
 
 wxUint32 wxMacGetSystemEncFromFontEnc(wxFontEncoding encoding)
@@ -614,8 +590,7 @@ wxCFStringRef::wxCFStringRef( const wxString &st , wxFontEncoding WXUNUSED_IN_UN
     }
     else
     {
-        wxString str = st ;
-        wxMacConvertNewlines13To10( &str ) ;
+        wxString str(wxMacConvertNewlines13To10(st));
 #if wxUSE_UNICODE
 #if wxUSE_UNICODE_WCHAR
         // native = wchar_t 4 bytes for us
@@ -700,8 +675,7 @@ wxString wxCFStringRef::AsString( CFStringRef ref, wxFontEncoding WXUNUSED_IN_UN
 #endif
 
     delete[] buf ;
-    wxMacConvertNewlines10To13( &result);
-    return result ;
+    return wxMacConvertNewlines10To13(result);
 }
 
 wxString wxCFStringRef::AsString(wxFontEncoding encoding) const
@@ -722,38 +696,3 @@ wxString wxCFStringRef::AsStringWithNormalizationFormC( NSString* ref, wxFontEnc
 }
 
 #endif
-
-//
-// wxMacUniCharBuffer
-//
-
-wxMacUniCharBuffer::wxMacUniCharBuffer( const wxString &str )
-{
-    wxMBConvUTF16 converter ;
-#if wxUSE_UNICODE
-    size_t unicharlen = converter.WC2MB( NULL , str.wc_str() , 0 ) ;
-    m_ubuf = (UniChar*) malloc( unicharlen + 2 ) ;
-    converter.WC2MB( (char*) m_ubuf , str.wc_str(), unicharlen + 2 ) ;
-#else
-    const wxWCharBuffer wchar = str.wc_str( wxConvLocal ) ;
-    size_t unicharlen = converter.WC2MB( NULL , wchar.data() , 0 ) ;
-    m_ubuf = (UniChar*) malloc( unicharlen + 2 ) ;
-    converter.WC2MB( (char*) m_ubuf , wchar.data() , unicharlen + 2 ) ;
-#endif
-    m_chars = unicharlen / 2 ;
-}
-
-wxMacUniCharBuffer::~wxMacUniCharBuffer()
-{
-    free( m_ubuf ) ;
-}
-
-UniCharPtr wxMacUniCharBuffer::GetBuffer()
-{
-    return m_ubuf ;
-}
-
-UniCharCount wxMacUniCharBuffer::GetChars()
-{
-    return m_chars ;
-}

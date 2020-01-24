@@ -23,6 +23,8 @@
 
 #include "wx/scopeguard.h"
 
+#if wxUSE_LOG
+
 #ifdef __WINDOWS__
     #include "wx/msw/wrapwin.h"
 #else
@@ -86,7 +88,7 @@ public:
 protected:
     virtual void DoLogRecord(wxLogLevel level,
                              const wxString& msg,
-                             const wxLogRecordInfo& info)
+                             const wxLogRecordInfo& info) wxOVERRIDE
     {
         m_logs[level] = msg;
         m_logsInfo[level] = info;
@@ -159,8 +161,8 @@ class LogTestCase : public CppUnit::TestCase
 public:
     LogTestCase() { }
 
-    virtual void setUp();
-    virtual void tearDown();
+    virtual void setUp() wxOVERRIDE;
+    virtual void tearDown() wxOVERRIDE;
 
 private:
     CPPUNIT_TEST_SUITE( LogTestCase );
@@ -248,7 +250,7 @@ void LogTestCase::Null()
 void LogTestCase::Component()
 {
     wxLogMessage("Message");
-    CPPUNIT_ASSERT_EQUAL( wxLOG_COMPONENT,
+    CPPUNIT_ASSERT_EQUAL( std::string(wxLOG_COMPONENT),
                           m_log->GetInfo(wxLOG_Message).component );
 
     // completely disable logging for this component
@@ -391,3 +393,5 @@ void LogTestCase::NoWarnings()
 
     CPPUNIT_ASSERT_EQUAL( "If", m_log->GetLog(wxLOG_Error) );
 }
+
+#endif // wxUSE_LOG

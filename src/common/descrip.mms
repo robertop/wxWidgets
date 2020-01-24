@@ -2,7 +2,7 @@
 #                                                                            *
 # Make file for VMS                                                          *
 # Author : J.Jansen (joukj@hrem.nano.tudelft.nl)                             *
-# Date : 29 June 2017                                                        *
+# Date : 13 September 2019                                                   *
 #                                                                            *
 #*****************************************************************************
 .first
@@ -89,7 +89,6 @@ OBJECTS = \
 		docmdi.obj,\
 		docview.obj,\
 		dpycmn.obj,\
-		dynarray.obj,\
 		dynlib.obj,\
 		encconv.obj,\
 		event.obj,\
@@ -236,7 +235,7 @@ OBJECTS_X11=accesscmn.obj,dndcmn.obj,dpycmn.obj,dseldlg.obj,\
 	dynload.obj,effects.obj,fddlgcmn.obj,fs_mem.obj,\
 	gbsizer.obj,geometry.obj,matrix.obj,radiocmn.obj,\
 	taskbarcmn.obj,xti.obj,xtistrm.obj,xtixml.obj,\
-	combocmn.obj
+	combocmn.obj,cairo.obj
 
 
 OBJECTS_GTK2=fontutilcmn.obj,cairo.obj
@@ -281,7 +280,6 @@ SOURCES = \
 		docmdi.cpp,\
 		docview.cpp,\
 		dpycmn.cpp,\
-		dynarray.cpp,\
 		dynlib.cpp,\
 		encconv.cpp,\
 		event.cpp,\
@@ -523,7 +521,6 @@ dlgcmn.obj : dlgcmn.cpp
 dobjcmn.obj : dobjcmn.cpp
 docmdi.obj : docmdi.cpp
 docview.obj : docview.cpp
-dynarray.obj : dynarray.cpp
 dynlib.obj : dynlib.cpp
 encconv.obj : encconv.cpp
 event.obj : event.cpp

@@ -15,6 +15,7 @@
 // headers
 // ----------------------------------------------------------------------------
 
+#include "wx/windowid.h"
 #include "wx/object.h"
 #include "wx/list.h"
 #include "wx/filefn.h"
@@ -274,13 +275,13 @@ inline bool wxPlatformIs(int platform) { return wxPlatform::Is(platform); }
 // ----------------------------------------------------------------------------
 
 // Ensure subsequent IDs don't clash with this one
-WXDLLIMPEXP_BASE void wxRegisterId(int id);
+WXDLLIMPEXP_BASE void wxRegisterId(wxWindowID id);
 
 // Return the current ID
-WXDLLIMPEXP_BASE int wxGetCurrentId();
+WXDLLIMPEXP_BASE wxWindowID wxGetCurrentId();
 
 // Generate a unique ID
-WXDLLIMPEXP_BASE int wxNewId();
+WXDLLIMPEXP_BASE wxWindowID wxNewId();
 
 // ----------------------------------------------------------------------------
 // Various conversions
@@ -603,6 +604,11 @@ WXDLLIMPEXP_BASE bool wxGetDiskSpace(const wxString& path,
 
 
 
+// See wx/vector.h for more about this hack.
+#ifndef wxQSORT_DECLARED
+
+#define wxQSORT_DECLARED
+
 typedef int (*wxSortCallback)(const void* pItem1,
                               const void* pItem2,
                               const void* user_data);
@@ -611,6 +617,8 @@ typedef int (*wxSortCallback)(const void* pItem1,
 WXDLLIMPEXP_BASE void wxQsort(void* pbase, size_t total_elems,
                               size_t size, wxSortCallback cmp,
                               const void* user_data);
+
+#endif // !wxQSORT_DECLARED
 
 
 #if wxUSE_GUI // GUI only things from now on
@@ -645,8 +653,18 @@ enum
     // strip everything after '\t'
     wxStrip_Accel = 2,
 
-    // strip everything (this is the default)
-    wxStrip_All = wxStrip_Mnemonics | wxStrip_Accel
+    // strip mnemonics of the form "(&X)" appended to the string (used in CJK
+    // translations)
+    wxStrip_CJKMnemonics = 4,
+
+    // strip everything (this doesn't include wxStrip_CJKMnemonics for
+    // compatibility)
+    wxStrip_All = wxStrip_Mnemonics | wxStrip_Accel,
+
+    // strip everything including CJK mnemonics, suitable for menu items labels
+    // only (despite its name, wxStripMenuCodes() is currently used for control
+    // labels too)
+    wxStrip_Menu = wxStrip_All | wxStrip_CJKMnemonics
 };
 
 // strip mnemonics and/or accelerators from the label

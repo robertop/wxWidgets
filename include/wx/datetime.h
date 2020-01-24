@@ -306,7 +306,9 @@ public:
             return tz;
         }
 
-        long GetOffset() const { return m_offset; }
+        bool IsLocal() const { return m_offset == -1; }
+
+        long GetOffset() const;
 
     private:
         // offset for this timezone from GMT in seconds
@@ -462,7 +464,7 @@ public:
     // ------------------------------------------------------------------------
 
         // default ctor does not initialize the object, use Set()!
-    wxDateTime() { m_time = wxINT64_MIN; }
+    wxDateTime() : m_time(wxINT64_MIN) { }
 
         // from time_t: seconds since the Epoch 00:00:00 UTC, Jan 1, 1970)
     inline wxDateTime(time_t timet);
@@ -1112,7 +1114,7 @@ public:
     // ------------------------------------------------------------------------
 
         // construct from internal representation
-    wxDateTime(const wxLongLong& time) { m_time = time; }
+    wxDateTime(const wxLongLong& time) : m_time(time) { }
 
         // get the internal representation
     inline wxLongLong GetValue() const;
@@ -1341,7 +1343,7 @@ public:
     // ------------------------------------------------------------------------
 
         // construct from internal representation
-    wxTimeSpan(const wxLongLong& diff) { m_diff = diff; }
+    wxTimeSpan(const wxLongLong& diff) : m_diff(diff) { }
 
         // get the internal representation
     wxLongLong GetValue() const { return m_diff; }

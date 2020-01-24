@@ -23,7 +23,11 @@
 #endif
 
 #ifndef WM_PRINTCLIENT
-    #define WM_PRINTCLIENT 0x318
+    #define WM_PRINTCLIENT      0x0318
+#endif
+
+#ifndef WM_DPICHANGED
+    #define WM_DPICHANGED       0x02E0
 #endif
 
 #ifndef DT_HIDEPREFIX
@@ -141,6 +145,11 @@
 #define QS_ALLPOSTMESSAGE 0
 #endif
 
+// Missing from MinGW 4.8 SDK headers.
+#ifndef BS_TYPEMASK
+#define BS_TYPEMASK 0xf
+#endif
+
 // ----------------------------------------------------------------------------
 // menu stuff
 // ----------------------------------------------------------------------------
@@ -239,6 +248,10 @@
     #define TV_FIRST                0x1100
 #endif
 
+#ifndef TVS_EX_DOUBLEBUFFER
+    #define TVS_EX_DOUBLEBUFFER     0x0004
+#endif
+
 #ifndef TVS_FULLROWSELECT
     #define TVS_FULLROWSELECT       0x1000
 #endif
@@ -248,7 +261,12 @@
     #define TVM_SETTEXTCOLOR        (TV_FIRST + 30)
 #endif
 
-// Various defines used by the webview library that are needed by mingw 
+#ifndef TVM_SETEXTENDEDSTYLE
+    #define TVM_SETEXTENDEDSTYLE    (TV_FIRST + 44)
+    #define TVM_GETEXTENDEDSTYLE    (TV_FIRST + 45)
+#endif
+
+// Various defines used by the webview library that are needed by mingw
 
 #ifndef DISPID_COMMANDSTATECHANGE
 #define DISPID_COMMANDSTATECHANGE 105
@@ -397,6 +415,10 @@
 
 #ifndef INVALID_FILE_ATTRIBUTES
     #define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
+#endif
+
+#ifndef OFN_FORCESHOWHIDDEN
+    #define OFN_FORCESHOWHIDDEN          0x10000000
 #endif
 
 #endif

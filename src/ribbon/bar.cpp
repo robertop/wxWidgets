@@ -77,7 +77,7 @@ void wxRibbonBar::AddPage(wxRibbonPage *page)
     wxString label;
     if(m_flags & wxRIBBON_BAR_SHOW_PAGE_LABELS)
         label = page->GetLabel();
-    wxBitmap icon = wxNullBitmap;
+    wxBitmap icon;
     if(m_flags & wxRIBBON_BAR_SHOW_PAGE_ICONS)
         icon = page->GetIcon();
     m_art->GetBarTabWidth(dcTemp, this, label, icon,
@@ -177,7 +177,7 @@ bool wxRibbonBar::Realize()
         wxString label;
         if(m_flags & wxRIBBON_BAR_SHOW_PAGE_LABELS)
             label = info.page->GetLabel();
-        wxBitmap icon = wxNullBitmap;
+        wxBitmap icon;
         if(m_flags & wxRIBBON_BAR_SHOW_PAGE_ICONS)
             icon = info.page->GetIcon();
         m_art->GetBarTabWidth(dcTemp, this, label, icon,
@@ -672,7 +672,7 @@ void wxRibbonBar::RecalculateTabSizes()
                         continue;
                     if(info->small_must_have_separator_width * (int)(numtabs - i) <= width)
                     {
-                        info->rect.width = info->small_must_have_separator_width;;
+                        info->rect.width = info->small_must_have_separator_width;
                     }
                     else
                     {
@@ -792,7 +792,7 @@ void wxRibbonBar::CommonInit(long style)
     {
         SetArtProvider(new wxRibbonDefaultArtProvider);
     }
-    SetBackgroundStyle(wxBG_STYLE_CUSTOM);
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
 
     m_toggle_button_hovered = false;
     m_bar_hovered = false;
@@ -1258,7 +1258,7 @@ wxSize wxRibbonBar::DoGetBestSize() const
 
 void wxRibbonBar::HitTestRibbonButton(const wxRect& rect, const wxPoint& position, bool &hover_flag)
 {
-    bool hovered = false, toggle_button_hovered = false;
+    bool hovered = false;
     if(position.x >= 0 && position.y >= 0)
     {
         wxSize size = GetSize();
@@ -1269,6 +1269,7 @@ void wxRibbonBar::HitTestRibbonButton(const wxRect& rect, const wxPoint& positio
     }
     if(hovered)
     {
+        bool toggle_button_hovered;
         toggle_button_hovered = rect.Contains(position);
 
         if ( hovered != m_bar_hovered || toggle_button_hovered != hover_flag )

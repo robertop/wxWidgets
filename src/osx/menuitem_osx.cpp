@@ -41,20 +41,24 @@ wxMenuItem::wxMenuItem(wxMenu *pParentMenu,
     // In other languages there is no difference in naming the Exit/Quit menu item between MacOS and Windows guidelines
     // therefore these item must not be translated
     if (pParentMenu != NULL && !pParentMenu->GetNoEventsMode())
-        if ( wxStripMenuCodes(m_text).Upper() == wxT("EXIT") )
+        if ( wxStripMenuCodes(m_text, wxStrip_Menu).Upper() == wxT("EXIT") )
             m_text = wxT("Quit\tCtrl+Q") ;
 
-    wxString text = wxStripMenuCodes(m_text, (pParentMenu != NULL && pParentMenu->GetNoEventsMode()) ? wxStrip_Accel : wxStrip_All);
+    wxString text = wxStripMenuCodes(m_text, (pParentMenu != NULL && pParentMenu->GetNoEventsMode()) ? wxStrip_Accel : wxStrip_Menu);
     if (text.IsEmpty() && !IsSeparator())
     {
         wxASSERT_MSG(wxIsStockID(GetId()), wxT("A non-stock menu item with an empty label?"));
         text = wxGetStockLabel(GetId(), wxSTOCK_WITH_ACCELERATOR|wxSTOCK_WITH_MNEMONIC);
     }
 
-    wxAcceleratorEntry *entry = wxAcceleratorEntry::Create( m_text ) ;
     // use accessors for ID and Kind because they might have been changed in the base constructor
+#if wxUSE_ACCEL
+    wxAcceleratorEntry *entry = wxAcceleratorEntry::Create( m_text ) ;
     m_peer = wxMenuItemImpl::Create( this, pParentMenu, GetId(), text, entry, strHelp, GetKind(), pSubMenu );
     delete entry;
+#else
+    m_peer = wxMenuItemImpl::Create( this, pParentMenu, GetId(), text, NULL, strHelp, GetKind(), pSubMenu );
+#endif // wxUSE_ACCEL/!wxUSE_ACCEL
 }
 
 wxMenuItem::~wxMenuItem()
@@ -187,16 +191,20 @@ void wxMenuItem::UpdateItemText()
     if ( !m_parentMenu )
         return ;
 
-    wxString text = wxStripMenuCodes(m_text, m_parentMenu != NULL && m_parentMenu->GetNoEventsMode() ? wxStrip_Accel : wxStrip_All);
+    wxString text = wxStripMenuCodes(m_text, m_parentMenu != NULL && m_parentMenu->GetNoEventsMode() ? wxStrip_Accel : wxStrip_Menu);
     if (text.IsEmpty() && !IsSeparator())
     {
         wxASSERT_MSG(wxIsStockID(GetId()), wxT("A non-stock menu item with an empty label?"));
         text = wxGetStockLabel(GetId(), wxSTOCK_WITH_ACCELERATOR|wxSTOCK_WITH_MNEMONIC);
     }
 
+#if wxUSE_ACCEL
     wxAcceleratorEntry *entry = wxAcceleratorEntry::Create( m_text ) ;
     GetPeer()->SetLabel( text, entry );
     delete entry ;
+#else
+    GetPeer()->SetLabel( text, NULL );
+#endif // wxUSE_ACCEL/!wxUSE_ACCEL
 }
 
 // ----------------------------------------------------------------------------

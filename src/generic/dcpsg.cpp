@@ -1097,8 +1097,8 @@ void wxPostScriptDCImpl::SetPSFont()
     wxString name;
     switch ( m_font.GetFamily() )
     {
-        case wxTELETYPE:
-        case wxMODERN:
+        case wxFONTFAMILY_TELETYPE:
+        case wxFONTFAMILY_MODERN:
         {
             if (Style == wxFONTSTYLE_ITALIC)
             {
@@ -1116,7 +1116,7 @@ void wxPostScriptDCImpl::SetPSFont()
             }
             break;
         }
-        case wxROMAN:
+        case wxFONTFAMILY_ROMAN:
         {
             if (Style == wxFONTSTYLE_ITALIC)
             {
@@ -1134,12 +1134,12 @@ void wxPostScriptDCImpl::SetPSFont()
             }
             break;
         }
-        case wxSCRIPT:
+        case wxFONTFAMILY_SCRIPT:
         {
             name = wxS("/ZapfChancery-MediumItalic");
             break;
         }
-        case wxSWISS:
+        case wxFONTFAMILY_SWISS:
         default:
         {
             if (Style == wxFONTSTYLE_ITALIC)
@@ -1471,7 +1471,7 @@ void wxPostScriptDCImpl::DoDrawSpline( const wxPointList *points )
 
     // a and b are not used
     //double a, b;
-    double c, d, x1, y1, x2, y2, x3, y3;
+    double c, d, x1, y1, x3, y3;
     wxPoint *p, *q;
 
     wxPointList::compatibility_iterator node = points->GetFirst();
@@ -1509,6 +1509,7 @@ void wxPostScriptDCImpl::DoDrawSpline( const wxPointList *points )
     node = node->GetNext();
     while (node)
     {
+        double x2, y2;
         q = node->GetData();
 
         x1 = x3;
@@ -1546,7 +1547,7 @@ void wxPostScriptDCImpl::DoDrawSpline( const wxPointList *points )
 
 wxCoord wxPostScriptDCImpl::GetCharWidth() const
 {
-    // Chris Breeze: reasonable approximation using wxMODERN/Courier
+    // Chris Breeze: reasonable approximation using wxFONTFAMILY_MODERN/Courier
     return (wxCoord) (GetCharHeight() * 72.0 / 120.0);
 }
 
@@ -1642,7 +1643,7 @@ void wxPostScriptDCImpl::DoGetSizeMM(int *width, int *height) const
 }
 
 // Resolution in pixels per logical inch
-wxSize wxPostScriptDCImpl::GetPPI(void) const
+wxSize wxPostScriptDCImpl::GetPPI() const
 {
     return wxSize( DPI, DPI );
 }
@@ -1983,7 +1984,7 @@ void wxPostScriptDCImpl::DoGetTextExtent(const wxString& string,
 #if !wxUSE_AFM_FOR_POSTSCRIPT
     /* Provide a VERY rough estimate (avoid using it).
      * Produces accurate results for mono-spaced font
-     * such as Courier (aka wxMODERN) */
+     * such as Courier (aka wxFONTFAMILY_MODERN) */
 
     if ( x )
         *x = strlen (strbuf) * fontSize * 72.0 / 120.0;
@@ -2061,8 +2062,8 @@ void wxPostScriptDCImpl::DoGetTextExtent(const wxString& string,
 
         switch (Family)
         {
-            case wxMODERN:
-            case wxTELETYPE:
+            case wxFONTFAMILY_MODERN:
+            case wxFONTFAMILY_TELETYPE:
             {
                 if ((Style == wxFONTSTYLE_ITALIC) && (Weight == wxFONTWEIGHT_BOLD)) name = wxT("CourBoO.afm");
                 else if ((Style != wxFONTSTYLE_ITALIC) && (Weight == wxFONTWEIGHT_BOLD)) name = wxT("CourBo.afm");
@@ -2070,7 +2071,7 @@ void wxPostScriptDCImpl::DoGetTextExtent(const wxString& string,
                 else name = wxT("Cour.afm");
                 break;
             }
-            case wxROMAN:
+            case wxFONTFAMILY_ROMAN:
             {
                 if ((Style == wxFONTSTYLE_ITALIC) && (Weight == wxFONTWEIGHT_BOLD)) name = wxT("TimesBoO.afm");
                 else if ((Style != wxFONTSTYLE_ITALIC) && (Weight == wxFONTWEIGHT_BOLD)) name = wxT("TimesBo.afm");
@@ -2078,12 +2079,12 @@ void wxPostScriptDCImpl::DoGetTextExtent(const wxString& string,
                 else name = wxT("TimesRo.afm");
                 break;
             }
-            case wxSCRIPT:
+            case wxFONTFAMILY_SCRIPT:
             {
                 name = wxT("Zapf.afm");
                 break;
             }
-            case wxSWISS:
+            case wxFONTFAMILY_SWISS:
             default:
             {
                 if ((Style == wxFONTSTYLE_ITALIC) && (Weight == wxFONTWEIGHT_BOLD)) name = wxT("HelvBoO.afm");

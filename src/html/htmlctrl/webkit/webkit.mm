@@ -21,8 +21,10 @@
 #include "wx/osx/private.h"
 
 #include <WebKit/WebKit.h>
+#if MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_15
 #include <WebKit/HIWebView.h>
 #include <WebKit/CarbonUtils.h>
+#endif
 
 #include "wx/html/webkit.h"
 
@@ -91,30 +93,6 @@ wxWebKitNewWindowEvent::wxWebKitNewWindowEvent( wxWindow* win )
         SetEventObject( win );
         SetId(win->GetId());
     }
-}
-
-
-
-//---------------------------------------------------------
-// helper functions for NSString<->wxString conversion
-//---------------------------------------------------------
-
-inline wxString wxStringWithNSString(NSString *nsstring)
-{
-#if wxUSE_UNICODE
-    return wxString([nsstring UTF8String], wxConvUTF8);
-#else
-    return wxString([nsstring lossyCString]);
-#endif // wxUSE_UNICODE
-}
-
-inline NSString* wxNSStringWithWxString(const wxString &wxstring)
-{
-#if wxUSE_UNICODE
-    return [NSString stringWithUTF8String: wxstring.mb_str(wxConvUTF8)];
-#else
-    return [NSString stringWithCString: wxstring.c_str() length:wxstring.Len()];
-#endif // wxUSE_UNICODE
 }
 
 inline int wxNavTypeFromWebNavType(int type){

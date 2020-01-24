@@ -74,6 +74,7 @@
     #include "wx/sysopt.h"
 #endif
 
+#include "wx/display.h"
 #include "wx/platinfo.h"
 #include "wx/recguard.h"
 #include "wx/private/window.h"
@@ -137,13 +138,13 @@ wxEND_EVENT_TABLE()
 
 #if wxUSE_EXTENDED_RTTI
 
-// windows that are created from a parent window during its Create method, 
-// eg. spin controls in a calendar controls must never been streamed out 
-// separately otherwise chaos occurs. Right now easiest is to test for negative ids, 
+// windows that are created from a parent window during its Create method,
+// eg. spin controls in a calendar controls must never been streamed out
+// separately otherwise chaos occurs. Right now easiest is to test for negative ids,
 // as windows with negative ids never can be recreated anyway
 
 
-bool wxWindowStreamingCallback( const wxObject *object, wxObjectWriter *, 
+bool wxWindowStreamingCallback( const wxObject *object, wxObjectWriter *,
                                wxObjectWriterCallback *, const wxStringToAnyHashMap & )
 {
     const wxWindow * win = wx_dynamic_cast(const wxWindow*, object);
@@ -159,7 +160,7 @@ wxIMPLEMENT_DYNAMIC_CLASS_XTI_CALLBACK(wxWindow, wxWindowBase, "wx/window.h", \
 
 wxCOLLECTION_TYPE_INFO( wxWindow*, wxWindowList );
 
-template<> void wxCollectionToVariantArray( wxWindowList const &theList, 
+template<> void wxCollectionToVariantArray( wxWindowList const &theList,
                                            wxAnyList &value)
 {
     wxListCollectionToAnyList<wxWindowList::compatibility_iterator>( theList, value );
@@ -269,6 +270,8 @@ wxIMPLEMENT_DYNAMIC_CLASS(wxWindow, wxWindowBase);
 
 // the default initialization
 wxWindowBase::wxWindowBase()
+    : m_virtualSize(wxDefaultSize)
+    , m_bestSizeCache(wxDefaultSize)
 {
     // no window yet, no parent nor children
     m_parent = NULL;
@@ -279,9 +282,6 @@ wxWindowBase::wxWindowBase()
     m_maxWidth = wxDefaultCoord;
     m_minHeight =
     m_maxHeight = wxDefaultCoord;
-
-    // invalidiated cache value
-    m_bestSizeCache = wxDefaultSize;
 
     // window are created enabled and visible by default
     m_isShown =
@@ -339,8 +339,6 @@ wxWindowBase::wxWindowBase()
 #if wxUSE_ACCESSIBILITY
     m_accessible = NULL;
 #endif
-
-    m_virtualSize = wxDefaultSize;
 
     m_scrollHelper = NULL;
 
@@ -790,15 +788,33 @@ wxSize wxWindowBase::DoGetBestSize() const
     return best;
 }
 
+namespace
+{
+
+static wxSize GetDPIHelper(const wxWindowBase* w)
+{
+    wxSize dpi;
+
+    if ( w )
+        dpi = w->GetDPI();
+    if ( !dpi.x || !dpi.y )
+        dpi = wxScreenDC().GetPPI();
+    if ( !dpi.x || !dpi.y )
+        dpi = wxSize(BASELINE_DPI, BASELINE_DPI);
+
+    return dpi;
+}
+
+}
+
 double wxWindowBase::GetContentScaleFactor() const
 {
-    // Currently we don't support per-monitor DPI, so it's useless to construct
-    // a DC associated with this window, just use the global value.
-    //
-    // We also use just the vertical component of the DPI because it's the one
+    const wxSize dpi = GetDPIHelper(this);
+
+    // We use just the vertical component of the DPI because it's the one
     // that counts most and, in practice, it's equal to the horizontal one
     // anyhow.
-    return double(wxScreenDC().GetPPI().y) / BASELINE_DPI;
+    return dpi.y / (double)BASELINE_DPI;
 }
 
 // helper of GetWindowBorderSize(): as many ports don't implement support for
@@ -807,7 +823,7 @@ double wxWindowBase::GetContentScaleFactor() const
 static int wxGetMetricOrDefault(wxSystemMetric what, const wxWindowBase* win)
 {
     int rc = wxSystemSettings::GetMetric(
-        what, static_cast<wxWindow*>(const_cast<wxWindowBase*>(win)));
+        what, static_cast<const wxWindow*>(win));
     if ( rc == -1 )
     {
         switch ( what )
@@ -1020,22 +1036,22 @@ void wxWindowBase::DoSetWindowVariant( wxWindowVariant variant )
     // adjust the font height to correspond to our new variant (notice that
     // we're only called if something really changed)
     wxFont font = GetFont();
-    int size = font.GetPointSize();
+    float size = font.GetFractionalPointSize();
     switch ( variant )
     {
         case wxWINDOW_VARIANT_NORMAL:
             break;
 
         case wxWINDOW_VARIANT_SMALL:
-            size = wxRound(size / 1.2);
+            size /= 1.2f;
             break;
 
         case wxWINDOW_VARIANT_MINI:
-            size = wxRound(size / (1.2 * 1.2));
+            size /= 1.2f * 1.2f;
             break;
 
         case wxWINDOW_VARIANT_LARGE:
-            size = wxRound(size * 1.2);
+            size *= 1.2f;
             break;
 
         default:
@@ -1043,7 +1059,7 @@ void wxWindowBase::DoSetWindowVariant( wxWindowVariant variant )
             break;
     }
 
-    font.SetPointSize(size);
+    font.SetFractionalPointSize(size);
     SetFont(font);
 }
 
@@ -1166,15 +1182,26 @@ bool wxWindowBase::IsEnabled() const
     return IsThisEnabled() && (IsTopLevel() || !GetParent() || GetParent()->IsEnabled());
 }
 
+// Define this macro if the corresponding operating system handles the state
+// of children windows automatically when the parent is enabled/disabled.
+// Otherwise wx itself must ensure that when the parent is disabled its
+// children are disabled too, and their initial state is restored when the
+// parent is enabled back.
+#if defined(__WXMSW__)
+    // must do everything ourselves
+    #undef wxHAS_NATIVE_ENABLED_MANAGEMENT
+#elif defined(__WXOSX__)
+    // must do everything ourselves
+    #undef wxHAS_NATIVE_ENABLED_MANAGEMENT
+#else
+    #define wxHAS_NATIVE_ENABLED_MANAGEMENT
+#endif
+
 void wxWindowBase::NotifyWindowOnEnableChange(bool enabled)
 {
-    // Under some platforms there is no need to update the window state
-    // explicitly, it will become disabled when its parent is. On other ones we
-    // do need to disable all windows recursively though.
-#ifndef wxHAS_NATIVE_ENABLED_MANAGEMENT
     DoEnable(enabled);
-#endif // !defined(wxHAS_NATIVE_ENABLED_MANAGEMENT)
 
+#ifndef wxHAS_NATIVE_ENABLED_MANAGEMENT
     // Disabling a top level window is typically done when showing a modal
     // dialog and we don't need to disable its children in this case, they will
     // be logically disabled anyhow (i.e. their IsEnabled() will return false)
@@ -1190,7 +1217,6 @@ void wxWindowBase::NotifyWindowOnEnableChange(bool enabled)
     // they would still show as enabled even though they wouldn't actually
     // accept any input (at least under MSW where children don't accept input
     // if any of the windows in their parent chain is enabled).
-#ifndef wxHAS_NATIVE_ENABLED_MANAGEMENT
     for ( wxWindowList::compatibility_iterator node = GetChildren().GetFirst();
           node;
           node = node->GetNext() )
@@ -1208,12 +1234,6 @@ bool wxWindowBase::Enable(bool enable)
         return false;
 
     m_isEnabled = enable;
-
-    // If we call DoEnable() from NotifyWindowOnEnableChange(), we don't need
-    // to do it from here.
-#ifdef wxHAS_NATIVE_ENABLED_MANAGEMENT
-    DoEnable(enable);
-#endif // !defined(wxHAS_NATIVE_ENABLED_MANAGEMENT)
 
     NotifyWindowOnEnableChange(enable);
 
@@ -1706,6 +1726,8 @@ wxFont wxWindowBase::GetFont() const
         if ( !font.IsOk() )
             font = GetClassDefaultAttributes().font;
 
+        font.WXAdjustToPPI(GetDPI());
+
         return font;
     }
     else
@@ -1723,6 +1745,9 @@ bool wxWindowBase::SetFont(const wxFont& font)
     m_font = font;
     m_hasFont = font.IsOk();
     m_inheritFont = m_hasFont;
+
+    if ( m_hasFont )
+        m_font.WXAdjustToPPI(GetDPI());
 
     InvalidateBestSize();
 
@@ -1782,10 +1807,10 @@ void wxWindowBase::SetValidator(const wxValidator& validator)
     if ( m_windowValidator )
         delete m_windowValidator;
 
-    m_windowValidator = (wxValidator *)validator.Clone();
+    m_windowValidator = static_cast<wxValidator *>(validator.Clone());
 
     if ( m_windowValidator )
-        m_windowValidator->SetWindow(this);
+        m_windowValidator->SetWindow(static_cast<wxWindow*>(this));
 }
 #endif // wxUSE_VALIDATORS
 
@@ -2854,13 +2879,18 @@ void wxWindowBase::OnInternalIdle()
 // DPI-independent pixels and dialog units translations
 // ----------------------------------------------------------------------------
 
+wxSize wxWindowBase::GetDPI() const
+{
+    return wxDisplay(static_cast<const wxWindow*>(this)).GetPPI();
+}
+
 #ifndef wxHAVE_DPI_INDEPENDENT_PIXELS
 
 /* static */
 wxSize
-wxWindowBase::FromDIP(const wxSize& sz, const wxWindowBase* WXUNUSED(w))
+wxWindowBase::FromDIP(const wxSize& sz, const wxWindowBase* w)
 {
-    const wxSize dpi = wxScreenDC().GetPPI();
+    const wxSize dpi = GetDPIHelper(w);
 
     // Take care to not scale -1 because it has a special meaning of
     // "unspecified" which should be preserved.
@@ -2870,9 +2900,9 @@ wxWindowBase::FromDIP(const wxSize& sz, const wxWindowBase* WXUNUSED(w))
 
 /* static */
 wxSize
-wxWindowBase::ToDIP(const wxSize& sz, const wxWindowBase* WXUNUSED(w))
+wxWindowBase::ToDIP(const wxSize& sz, const wxWindowBase* w)
 {
-    const wxSize dpi = wxScreenDC().GetPPI();
+    const wxSize dpi = GetDPIHelper(w);
 
     // Take care to not scale -1 because it has a special meaning of
     // "unspecified" which should be preserved.
@@ -2891,7 +2921,7 @@ wxWindowBase::ToDIP(const wxSize& sz, const wxWindowBase* WXUNUSED(w))
 // using them.
 wxSize wxWindowBase::GetDlgUnitBase() const
 {
-    const wxWindowBase * const parent = wxGetTopLevelParent((wxWindow*)this);
+    const wxWindowBase* const parent = wxGetTopLevelParent((wxWindow*)this);
 
     wxCHECK_MSG( parent, wxDefaultSize, wxS("Must have TLW parent") );
 
@@ -2899,10 +2929,10 @@ wxSize wxWindowBase::GetDlgUnitBase() const
     {
         // Default GUI font is used. This is the most common case, so
         // cache the results.
-        static wxSize s_defFontSize;
-        if ( s_defFontSize.x == 0 )
-            s_defFontSize = wxPrivate::GetAverageASCIILetterSize(*parent);
-        return s_defFontSize;
+        static wxPrivate::DpiDependentValue<wxSize> s_defFontSize;
+        if ( s_defFontSize.HasChanged(parent) )
+            s_defFontSize.SetAtNewDPI(wxPrivate::GetAverageASCIILetterSize(*parent));
+        return s_defFontSize.Get();
     }
     else
     {
@@ -3018,10 +3048,7 @@ wxWindowBase::DoGetPopupMenuSelectionFromUser(wxMenu& menu, int x, int y)
 {
     gs_popupMenuSelection = wxID_NONE;
 
-    Connect(wxEVT_MENU,
-            wxCommandEventHandler(wxWindowBase::InternalOnPopupMenu),
-            NULL,
-            this);
+    Bind(wxEVT_MENU, &wxWindowBase::InternalOnPopupMenu, this);
 
     // it is common to construct the menu passed to this function dynamically
     // using some fixed range of ids which could clash with the ids used
@@ -3030,26 +3057,31 @@ wxWindowBase::DoGetPopupMenuSelectionFromUser(wxMenu& menu, int x, int y)
     // elsewhere in the program code and this is difficult to avoid in the
     // program itself, so instead we just temporarily suspend UI updating while
     // this menu is shown
-    Connect(wxEVT_UPDATE_UI,
-            wxUpdateUIEventHandler(wxWindowBase::InternalOnPopupMenuUpdate),
-            NULL,
-            this);
+    Bind(wxEVT_UPDATE_UI, &wxWindowBase::InternalOnPopupMenuUpdate, this);
 
     PopupMenu(&menu, x, y);
 
-    Disconnect(wxEVT_UPDATE_UI,
-               wxUpdateUIEventHandler(wxWindowBase::InternalOnPopupMenuUpdate),
-               NULL,
-               this);
-    Disconnect(wxEVT_MENU,
-               wxCommandEventHandler(wxWindowBase::InternalOnPopupMenu),
-               NULL,
-               this);
+    Unbind(wxEVT_UPDATE_UI, &wxWindowBase::InternalOnPopupMenuUpdate, this);
+    Unbind(wxEVT_MENU, &wxWindowBase::InternalOnPopupMenu, this);
 
     return gs_popupMenuSelection;
 }
 
 #endif // wxUSE_MENUS
+
+bool wxWindowBase::WXSendContextMenuEvent(const wxPoint& posInScreenCoords)
+{
+    // When the mouse click happens in a subwindow of a composite control,
+    // the user-visible event should seem to originate from the main window
+    // and, notably, use its ID and not the (usually auto-generated and so
+    // not very useful) ID of the subwindow.
+    wxWindow* const mainWin = GetMainWindowOfCompositeControl();
+
+    wxContextMenuEvent
+        evtCtx(wxEVT_CONTEXT_MENU, mainWin->GetId(), posInScreenCoords);
+    evtCtx.SetEventObject(mainWin);
+    return mainWin->HandleWindowEvent(evtCtx);
+}
 
 // methods for drawing the sizers in a visible way: this is currently only
 // enabled for "full debug" builds with wxDEBUG_LEVEL==2 as it doesn't work

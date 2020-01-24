@@ -603,9 +603,12 @@ void wxLog::SetComponentLevel(const wxString& component, wxLogLevel level)
 }
 
 /* static */
-wxLogLevel wxLog::GetComponentLevel(wxString component)
+wxLogLevel wxLog::GetComponentLevel(const wxString& componentOrig)
 {
     wxCRIT_SECT_LOCKER(lock, GetLevelsCS());
+
+    // Make a copy before modifying it in the loop.
+    wxString component = componentOrig;
 
     const wxStringToNumHashMap& componentLevels = GetComponentLevels();
     while ( !component.empty() )
@@ -839,12 +842,9 @@ void wxLogBuffer::DoLogTextAtLevel(wxLogLevel level, const wxString& msg)
 // wxLogStderr class implementation
 // ----------------------------------------------------------------------------
 
-wxLogStderr::wxLogStderr(FILE *fp)
+wxLogStderr::wxLogStderr(FILE *fp, const wxMBConv& conv)
+           : wxMessageOutputStderr(fp ? fp : stderr, conv)
 {
-    if ( fp == NULL )
-        m_fp = stderr;
-    else
-        m_fp = fp;
 }
 
 void wxLogStderr::DoLogText(const wxString& msg)
@@ -852,7 +852,7 @@ void wxLogStderr::DoLogText(const wxString& msg)
     // First send it to stderr, even if we don't have it (e.g. in a Windows GUI
     // application under) it's not a problem to try to use it and it's easier
     // than determining whether we do have it or not.
-    wxMessageOutputStderr(m_fp).Output(msg);
+    wxMessageOutputStderr::Output(msg);
 
     // under GUI systems such as Windows or Mac, programs usually don't have
     // stderr at all, so show the messages also somewhere else, typically in
@@ -874,7 +874,8 @@ void wxLogStderr::DoLogText(const wxString& msg)
 
 #if wxUSE_STD_IOSTREAM
 #include "wx/ioswrap.h"
-wxLogStream::wxLogStream(wxSTD ostream *ostr)
+wxLogStream::wxLogStream(wxSTD ostream *ostr, const wxMBConv& conv)
+    : wxMessageOutputWithConv(conv)
 {
     if ( ostr == NULL )
         m_ostr = &wxSTD cerr;
@@ -884,7 +885,8 @@ wxLogStream::wxLogStream(wxSTD ostream *ostr)
 
 void wxLogStream::DoLogText(const wxString& msg)
 {
-    (*m_ostr) << msg << wxSTD endl;
+    const wxCharBuffer& buf = PrepareForOutput(msg);
+    m_ostr->write(buf, buf.length());
 }
 #endif // wxUSE_STD_IOSTREAM
 
@@ -1067,7 +1069,8 @@ static const wxChar* GetSysErrorMsg(wxChar* szBuf, size_t sizeBuf, unsigned long
     LPVOID lpMsgBuf;
     if ( ::FormatMessage
          (
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+            FORMAT_MESSAGE_IGNORE_INSERTS,
             NULL,
             nErrCode,
             MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
@@ -1076,9 +1079,11 @@ static const wxChar* GetSysErrorMsg(wxChar* szBuf, size_t sizeBuf, unsigned long
             NULL
          ) == 0 )
     {
+        wxLogDebug(wxS("FormatMessage failed with error 0x%lx in %s"),
+            GetLastError(), __WXFUNCTION__ ? __WXFUNCTION__ : "");
         // if this happens, something is seriously wrong, so don't use _() here
         // for safety
-        wxSprintf(szBuf, wxS("unknown error %lx"), nErrCode);
+        wxSprintf(szBuf, wxS("unknown error 0x%lx"), nErrCode);
         return szBuf;
     }
 
@@ -1109,7 +1114,7 @@ static const wxChar* GetSysErrorMsg(wxChar* szBuf, size_t sizeBuf, unsigned long
         char buffer[1024];
         char *errorMsg = buffer;
 
-#ifdef _GNU_SOURCE // GNU-specific strerror_r
+#if defined(__GLIBC__) && defined(_GNU_SOURCE) // GNU-specific strerror_r
         // GNU's strerror_r has a weird interface -- it doesn't
         // necessarily copy anything to the buffer given; use return
         // value instead.

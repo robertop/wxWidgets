@@ -37,6 +37,8 @@
         <if cond="FORMAT=='msvs2008prj' and MSVS_PLATFORM=='win64'">_x64</if>
         <if cond="TARGET_CPU=='amd64'">_x64</if>
         <if cond="TARGET_CPU=='AMD64'">_x64</if>
+        <if cond="TARGET_CPU=='arm64'">_arm64</if>
+        <if cond="TARGET_CPU=='ARM64'">_arm64</if>
         <if cond="TARGET_CPU=='ia64'">_ia64</if>
         <if cond="TARGET_CPU=='IA64'">_ia64</if>
         <if cond="TARGET_CPU=='x64'">_x64</if>
@@ -178,7 +180,7 @@
         <if cond="MONOLITHIC=='0'">$(mk.evalExpr(wxwin.mkLibName('richtext')))</if>
     </set>
     <set var="WXLIB_STC">
-        <if cond="MONOLITHIC=='0'">$(mk.evalExpr(wxwin.mkLibName('stc')))</if>
+        <if cond="MONOLITHIC=='0' and USE_STC=='1'">$(mk.evalExpr(wxwin.mkLibName('stc')))</if>
     </set>
 
     <set var="WXLIB_WEBVIEW">
@@ -301,6 +303,10 @@
         <if cond="FORMAT=='dmars' or FORMAT=='dmars_smake'">_WIN32_WINNT=0x0400</if>
     </set>
 
+    <set var="WIN32_DPI_MANIFEST">
+        <if cond="PLATFORM_WIN32=='1' and IS_MSVC=='0'">wxUSE_DPI_AWARE_MANIFEST=$(USE_DPI_AWARE_MANIFEST)</if>
+    </set>
+
     <set var="CAIRO_LIB">
         <if cond="USE_CAIRO=='1'">cairo</if>
     </set>
@@ -314,11 +320,45 @@
     <set var="LINK_TARGET_CPU">
         <if cond="TARGET_CPU=='amd64'">/MACHINE:X64</if>
         <if cond="TARGET_CPU=='AMD64'">/MACHINE:X64</if>
+        <if cond="TARGET_CPU=='arm64'">/MACHINE:ARM64</if>
+        <if cond="TARGET_CPU=='ARM64'">/MACHINE:ARM64</if>
         <if cond="TARGET_CPU=='ia64'">/MACHINE:IA64</if>
         <if cond="TARGET_CPU=='IA64'">/MACHINE:IA64</if>
         <if cond="TARGET_CPU=='x64'">/MACHINE:X64</if>
         <if cond="TARGET_CPU=='X64'">/MACHINE:X64</if>
     </set>
+
+    <set var="WIN32_DPI_LINKFLAG"></set>
+    <if cond="IS_MSVC_PRJ">
+        <set var="WIN32_DPI_LINKFLAG">
+            <!-- 32-bit system dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and MSVS_PLATFORM=='win32'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/wx_dpi_aware.manifest</if>
+            <!-- 64-bit system dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and MSVS_PLATFORM=='win64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware.manifest</if>
+            <!-- 32-bit per-monitor dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and MSVS_PLATFORM=='win32'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/wx_dpi_aware_pmv2.manifest</if>
+            <!-- 64-bit per-monitor dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and MSVS_PLATFORM=='win64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware_pmv2.manifest</if>
+        </set>
+    </if>
+    <if cond="FORMAT=='msvc'">
+        <set var="WIN32_DPI_LINKFLAG">
+            <!-- 32-bit system dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and TARGET_CPU==''">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/wx_dpi_aware.manifest</if>
+            <!-- 64-bit system dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and TARGET_CPU=='amd64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware.manifest</if>
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and TARGET_CPU=='AMD64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware.manifest</if>
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and TARGET_CPU=='x64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware.manifest</if>
+            <if cond="USE_DPI_AWARE_MANIFEST=='1' and TARGET_CPU=='X64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware.manifest</if>
+            <!-- 32-bit per-monitor dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and TARGET_CPU==''">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/wx_dpi_aware_pmv2.manifest</if>
+            <!-- 64-bit per-monitor dpi -->
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and TARGET_CPU=='amd64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware_pmv2.manifest</if>
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and TARGET_CPU=='AMD64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware_pmv2.manifest</if>
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and TARGET_CPU=='x64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware_pmv2.manifest</if>
+            <if cond="USE_DPI_AWARE_MANIFEST=='2' and TARGET_CPU=='X64'">/MANIFEST:EMBED /MANIFESTINPUT:$(TOP_SRCDIR)include/wx/msw/amd64_dpi_aware_pmv2.manifest</if>
+        </set>
+    </if>
 
     <template id="common_settings">
         <debug-info>$(DEBUGINFO)</debug-info>
@@ -339,6 +379,8 @@
         </if>
         <define>$(NO_VC_CRTDBG)</define>
         <define>$(WIN32_WINNT)</define>
+        <res-define>$(WIN32_DPI_MANIFEST)</res-define>
+        <ldflags>$(WIN32_DPI_LINKFLAG)</ldflags>
         <if cond="FORMAT=='msvc'">
             <ldflags>$(LINK_TARGET_CPU)</ldflags>
         </if>
@@ -570,6 +612,7 @@ $(TAB)cl /EP /nologo "$(DOLLAR)(InputPath)" > "$(SETUPHDIR)\wx\msw\rcdefs.h"
                  wx/msw/libraries.h when wxUSE_ACCESSIBILITY==1 -->
             <if cond="IS_MSVC=='0'">
                 <sys-lib>oleacc</sys-lib>
+                <sys-lib>uxtheme</sys-lib>
             </if>
         </if>
     </template>
@@ -577,6 +620,7 @@ $(TAB)cl /EP /nologo "$(DOLLAR)(InputPath)" > "$(SETUPHDIR)\wx\msw\rcdefs.h"
     <set var="LIB_GTK">
         <if cond="FORMAT!='autoconf' and PLATFORM_WIN32=='1' and TOOLKIT=='GTK' and TOOLKIT_VERSION=='2'">gtk-win32-2.0.lib gdk-win32-2.0.lib gio-2.0.lib pangocairo-1.0.lib gdk_pixbuf-2.0.lib cairo.lib pango-1.0.lib gobject-2.0.lib gthread-2.0.lib glib-2.0.lib</if>
         <if cond="FORMAT!='autoconf' and PLATFORM_WIN32=='1' and TOOLKIT=='GTK' and TOOLKIT_VERSION=='3'">libgtk-3.dll.a libgdk-3.dll.a gio-2.0.lib pangocairo-1.0.lib gdk_pixbuf-2.0.lib cairo.lib pango-1.0.lib gobject-2.0.lib gthread-2.0.lib glib-2.0.lib</if>
+        <if cond="FORMAT!='autoconf' and PLATFORM_WIN32=='1' and TOOLKIT=='GTK' and TOOLKIT_VERSION=='4'">libgtk-4.dll.a libgdk-4.dll.a gio-2.0.lib pangocairo-1.0.lib gdk_pixbuf-2.0.lib cairo.lib pango-1.0.lib gobject-2.0.lib gthread-2.0.lib glib-2.0.lib</if>
     </set>
 
     <!-- for GUI libs/samples: -->

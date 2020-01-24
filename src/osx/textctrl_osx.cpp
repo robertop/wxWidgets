@@ -34,11 +34,7 @@
 #endif
 
 #if wxUSE_STD_IOSTREAM
-    #if wxUSE_IOSTREAMH
-        #include <fstream.h>
-    #else
-        #include <fstream>
-    #endif
+    #include <fstream>
 #endif
 
 #include "wx/filefn.h"
@@ -184,12 +180,6 @@ bool wxTextCtrl::SetDefaultStyle(const wxTextAttr& style)
 bool wxTextCtrl::IsModified() const
 {
     return m_dirty;
-}
-
-bool wxTextCtrl::AcceptsFocus() const
-{
-    // we don't want focus if we can't be edited
-    return /*IsEditable() && */ wxControl::AcceptsFocus();
 }
 
 wxSize wxTextCtrl::DoGetBestSize() const
@@ -482,6 +472,17 @@ void wxTextCtrl::Command(wxCommandEvent & event)
     ProcessCommand(event);
 }
 
+void wxTextCtrl::SetWindowStyleFlag(long style)
+{
+    long styleOld = GetWindowStyleFlag();
+
+    wxTextCtrlBase::SetWindowStyleFlag(style);
+
+    static const long flagsAlign = wxTE_LEFT | wxTE_CENTRE | wxTE_RIGHT;
+    if ( (style & flagsAlign) != (styleOld & flagsAlign) )
+        GetTextPeer()->SetJustification();
+}
+
 // ----------------------------------------------------------------------------
 // standard handlers for standard edit menu events
 // ----------------------------------------------------------------------------
@@ -771,7 +772,10 @@ int wxTextWidgetImpl::GetLineLength(long lineNo) const
             count++;
     }
 
-    return 0 ;
+    return -1 ;
 }
 
+void wxTextWidgetImpl::SetJustification()
+{
+}
 #endif // wxUSE_TEXTCTRL

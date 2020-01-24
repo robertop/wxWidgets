@@ -75,7 +75,7 @@ public:
             return false;
         }
 
-        m_source = loop->AddSourceForFD
+        m_source = wxEventLoopBase::AddSourceForFD
                          (
                           m_ifd,
                           m_handler,
@@ -432,7 +432,7 @@ protected:
             if ( it2 == m_cookies.end() )
             {
                 int size = sizeof(inevt) + inevt.len;
-                inotify_event* e = (inotify_event*) operator new (size);
+                inotify_event* e = (inotify_event*)new char[size];
                 memcpy(e, &inevt, size);
 
                 wxInotifyCookies::value_type val(e->cookie, e);
@@ -481,7 +481,7 @@ protected:
                 }
 
                 m_cookies.erase(it2);
-                delete &oldinevt;
+                delete[] (char*)&oldinevt;
             }
         }
         // every other kind of event
@@ -533,7 +533,7 @@ protected:
             }
 
             m_cookies.erase(it);
-            delete &inevt;
+            delete[] (char*)&inevt;
             it = m_cookies.begin();
         }
     }

@@ -25,7 +25,6 @@
 
 #include "wx/modalhook.h"
 
-#include <gtk/gtk.h>
 #include "wx/gtk/private.h"
 #include "wx/gtk/private/messagetype.h"
 #include "wx/gtk/private/mnemonics.h"
@@ -50,27 +49,57 @@ wxMessageDialog::wxMessageDialog(wxWindow *parent,
 
 wxString wxMessageDialog::GetDefaultYesLabel() const
 {
+#ifdef __WXGTK4__
+    return wxConvertMnemonicsToGTK(wxGetStockLabel(wxID_YES));
+#else
+    wxGCC_WARNING_SUPPRESS(deprecated-declarations)
     return GTK_STOCK_YES;
+    wxGCC_WARNING_RESTORE()
+#endif
 }
 
 wxString wxMessageDialog::GetDefaultNoLabel() const
 {
+#ifdef __WXGTK4__
+    return wxConvertMnemonicsToGTK(wxGetStockLabel(wxID_NO));
+#else
+    wxGCC_WARNING_SUPPRESS(deprecated-declarations)
     return GTK_STOCK_NO;
+    wxGCC_WARNING_RESTORE()
+#endif
 }
 
 wxString wxMessageDialog::GetDefaultOKLabel() const
 {
+#ifdef __WXGTK4__
+    return wxConvertMnemonicsToGTK(wxGetStockLabel(wxID_OK));
+#else
+    wxGCC_WARNING_SUPPRESS(deprecated-declarations)
     return GTK_STOCK_OK;
+    wxGCC_WARNING_RESTORE()
+#endif
 }
 
 wxString wxMessageDialog::GetDefaultCancelLabel() const
 {
+#ifdef __WXGTK4__
+    return wxConvertMnemonicsToGTK(wxGetStockLabel(wxID_CANCEL));
+#else
+    wxGCC_WARNING_SUPPRESS(deprecated-declarations)
     return GTK_STOCK_CANCEL;
+    wxGCC_WARNING_RESTORE()
+#endif
 }
 
 wxString wxMessageDialog::GetDefaultHelpLabel() const
 {
+#ifdef __WXGTK4__
+    return wxConvertMnemonicsToGTK(wxGetStockLabel(wxID_HELP));
+#else
+    wxGCC_WARNING_SUPPRESS(deprecated-declarations)
     return GTK_STOCK_HELP;
+    wxGCC_WARNING_RESTORE()
+#endif
 }
 
 void wxMessageDialog::DoSetCustomLabel(wxString& var, const ButtonLabel& label)
@@ -83,7 +112,11 @@ void wxMessageDialog::DoSetCustomLabel(wxString& var, const ButtonLabel& label)
     }
     else // stock label
     {
+#ifdef __WXGTK4__
+        var = wxConvertMnemonicsToGTK(wxGetStockLabel(stockId));
+#else
         var = wxGetStockGtkID(stockId);
+#endif
     }
 }
 

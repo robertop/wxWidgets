@@ -217,7 +217,7 @@ LRESULT CALLBACK wxSocket_Internal_WinProc(HWND hWnd,
                 // only then). Ignore such dummy notifications.
                 {
                     fd_set fds;
-                    timeval tv = { 0, 0 };
+                    wxTimeVal_t tv = { 0, 0 };
 
                     wxFD_ZERO(&fds);
                     wxFD_SET(socket->m_fd, &fds);
@@ -310,7 +310,7 @@ void wxSocketImplMSW::DoClose()
 {
     wxSocketManager::Get()->Uninstall_Callback(this);
 
-    closesocket(m_fd);
+    wxCloseSocket(m_fd);
 }
 
 wxSocketError wxSocketImplMSW::GetLastError() const

@@ -589,8 +589,8 @@ void wxPrintAbortDialog::OnCancel(wxCommandEvent& WXUNUSED(event))
 wxIMPLEMENT_ABSTRACT_CLASS(wxPrintout, wxObject);
 
 wxPrintout::wxPrintout(const wxString& title)
+    : m_printoutTitle(title)
 {
-    m_printoutTitle = title ;
     m_printoutDC = NULL;
     m_pageWidthMM = 0;
     m_pageHeightMM = 0;
@@ -636,6 +636,38 @@ void wxPrintout::GetPageInfo(int *minPage, int *maxPage, int *fromPage, int *toP
     *maxPage = DEFAULT_MAX_PAGES;
     *fromPage = 1;
     *toPage = 1;
+}
+
+bool wxPrintout::SetUp(wxDC& dc)
+{
+    wxCHECK_MSG( dc.IsOk(), false, "should have a valid DC to set up" );
+
+    SetPPIScreen(wxGetDisplayPPI());
+
+    // We need to know printer PPI. In most ports, this can be retrieved from
+    // the printer DC, but in others it is computed (probably for legacy
+    // reasons) outside of wxDC code, so don't override it if it had been
+    // already set.
+    if ( !m_PPIPrinterX || !m_PPIPrinterY )
+    {
+        SetPPIPrinter(dc.GetPPI());
+        if ( !m_PPIPrinterX || !m_PPIPrinterY )
+        {
+            // But if we couldn't get it in any way, we can't continue.
+            return false;
+        }
+    }
+
+    SetDC(&dc);
+
+    dc.GetSize(&m_pageWidthPixels, &m_pageHeightPixels);
+    // This is ugly, but wxDCImpl itself has GetPaperRect() method while wxDC
+    // doesn't (only wxPrinterDC does), so use GetImpl() to avoid having to use
+    // a dynamic cast.
+    m_paperRectPixels = dc.GetImpl()->GetPaperRect();
+    dc.GetSizeMM(&m_pageWidthMM, &m_pageHeightMM);
+
+    return true;
 }
 
 void wxPrintout::FitThisSizeToPaper(const wxSize& imageSize)
@@ -1139,10 +1171,8 @@ public:
         m_maxPage =
         m_page = 1;
 
-        Connect(wxEVT_KILL_FOCUS,
-                wxFocusEventHandler(wxPrintPageTextCtrl::OnKillFocus));
-        Connect(wxEVT_TEXT_ENTER,
-                wxCommandEventHandler(wxPrintPageTextCtrl::OnTextEnter));
+        Bind(wxEVT_KILL_FOCUS, &wxPrintPageTextCtrl::OnKillFocus, this);
+        Bind(wxEVT_TEXT_ENTER, &wxPrintPageTextCtrl::OnTextEnter, this);
     }
 
     // Update the pages range, must be called after OnPreparePrinting() as

@@ -266,13 +266,13 @@ static const char * const ribbon_help_button_xpm[] = {
 };
 
 wxRibbonMSWArtProvider::wxRibbonMSWArtProvider(bool set_colour_scheme)
+#if defined( __WXMAC__ )
+    : m_tab_label_font(*wxSMALL_FONT)
+#else
+    : m_tab_label_font(*wxNORMAL_FONT)
+#endif
 {
     m_flags = 0;
-#if defined( __WXMAC__ )
-    m_tab_label_font = *wxSMALL_FONT;
-#else
-    m_tab_label_font = *wxNORMAL_FONT;
-#endif
     m_button_bar_label_font = m_tab_label_font;
     m_panel_label_font = m_tab_label_font;
 
@@ -386,6 +386,8 @@ void wxRibbonMSWArtProvider::SetColourScheme(
     m_tab_separator_gradient_colour = LikePrimary(1.7, -0.15, -0.18);
     m_tab_hover_background_top_gradient_colour = LikePrimary(1.8, 0.34, 0.13);
     m_tab_label_colour = LikePrimary(4.3, 0.13, -0.49);
+    m_tab_active_label_colour = m_tab_label_colour;
+    m_tab_hover_label_colour = m_tab_label_colour;
     m_tab_hover_background_gradient_colour = LikeSecondary(-1.5, -0.34, 0.01);
 
     m_panel_minimised_border_gradient_pen = LikePrimary(-6.9, -0.17, -0.09);
@@ -528,6 +530,8 @@ void wxRibbonMSWArtProvider::CloneTo(wxRibbonMSWArtProvider* copy) const
     copy->m_button_bar_label_colour = m_button_bar_label_colour;
     copy->m_button_bar_label_disabled_colour = m_button_bar_label_disabled_colour;
     copy->m_tab_label_colour = m_tab_label_colour;
+    copy->m_tab_active_label_colour = m_tab_active_label_colour;
+    copy->m_tab_hover_label_colour = m_tab_hover_label_colour;
     copy->m_tab_separator_colour = m_tab_separator_colour;
     copy->m_tab_separator_gradient_colour = m_tab_separator_gradient_colour;
     copy->m_tab_active_background_colour = m_tab_hover_background_colour;
@@ -849,6 +853,10 @@ wxColour wxRibbonMSWArtProvider::GetColour(int id) const
             return m_tab_ctrl_background_brush.GetColour();
         case wxRIBBON_ART_TAB_LABEL_COLOUR:
             return m_tab_label_colour;
+        case wxRIBBON_ART_TAB_ACTIVE_LABEL_COLOUR:
+            return m_tab_active_label_colour;
+        case wxRIBBON_ART_TAB_HOVER_LABEL_COLOUR:
+            return m_tab_hover_label_colour;
         case wxRIBBON_ART_TAB_SEPARATOR_COLOUR:
             return m_tab_separator_colour;
         case wxRIBBON_ART_TAB_SEPARATOR_GRADIENT_COLOUR:
@@ -1093,6 +1101,12 @@ void wxRibbonMSWArtProvider::SetColour(int id, const wxColor& colour)
             break;
         case wxRIBBON_ART_TAB_LABEL_COLOUR:
             m_tab_label_colour = colour;
+            break;
+        case wxRIBBON_ART_TAB_ACTIVE_LABEL_COLOUR:
+            m_tab_active_label_colour = colour;
+            break;
+        case wxRIBBON_ART_TAB_HOVER_LABEL_COLOUR:
+            m_tab_hover_label_colour = colour;
             break;
         case wxRIBBON_ART_TAB_SEPARATOR_COLOUR:
             m_tab_separator_colour = colour;
@@ -1372,8 +1386,21 @@ void wxRibbonMSWArtProvider::DrawTab(
         if(!label.IsEmpty())
         {
             dc.SetFont(m_tab_label_font);
-            dc.SetTextForeground(m_tab_label_colour);
-            dc.SetBackgroundMode(wxTRANSPARENT);
+
+            if (tab.active)
+            {
+                dc.SetTextForeground(m_tab_active_label_colour);
+            }
+            else if (tab.hovered)
+            {
+                dc.SetTextForeground(m_tab_hover_label_colour);
+            }
+            else
+            {
+                dc.SetTextForeground(m_tab_label_colour);
+            }
+
+            dc.SetBackgroundMode(wxBRUSHSTYLE_TRANSPARENT);
 
             int text_height;
             int text_width;
@@ -1628,6 +1655,7 @@ void wxRibbonMSWArtProvider::DrawScrollButton(
         {
         case wxRIBBON_SCROLL_BTN_LEFT:
             rect.x++;
+            wxFALLTHROUGH;
         case wxRIBBON_SCROLL_BTN_RIGHT:
             rect.y--;
             rect.width--;
@@ -2025,7 +2053,7 @@ void wxRibbonMSWArtProvider::DrawGalleryButton(wxDC& dc,
     rect.y++;
     if(m_flags & wxRIBBON_BAR_FLOW_VERTICAL)
     {
-        rect.width--;;
+        rect.width--;
         rect.height -= 2;
     }
     else
@@ -3035,6 +3063,7 @@ bool wxRibbonMSWArtProvider::GetButtonBarButtonSize(
                         wxRibbonButtonKind kind,
                         wxRibbonButtonBarButtonState size,
                         const wxString& label,
+                        wxCoord text_min_width,
                         wxSize bitmap_size_large,
                         wxSize bitmap_size_small,
                         wxSize* button_size,
@@ -3073,9 +3102,11 @@ bool wxRibbonMSWArtProvider::GetButtonBarButtonSize(
         // Small bitmap, with label to the right
         {
             GetButtonBarButtonSize(dc, wnd, kind, wxRIBBON_BUTTONBAR_BUTTON_SMALL,
-                label, bitmap_size_large, bitmap_size_small, button_size,
-                normal_region, dropdown_region);
+                label, text_min_width, bitmap_size_large, bitmap_size_small,
+                button_size, normal_region, dropdown_region);
             int text_size = dc.GetTextExtent(label).GetWidth();
+            if(text_size < text_min_width)
+                text_size = text_min_width;
             button_size->SetWidth(button_size->GetWidth() + text_size);
             switch(kind)
             {
@@ -3100,6 +3131,8 @@ bool wxRibbonMSWArtProvider::GetButtonBarButtonSize(
             wxCoord label_height;
             wxCoord best_width;
             dc.GetTextExtent(label, &best_width, &label_height);
+            if(best_width < text_min_width)
+                best_width = text_min_width;
             int last_line_extra_width = 0;
             if(kind != wxRIBBON_BUTTON_NORMAL && kind != wxRIBBON_BUTTON_TOGGLE)
             {
@@ -3113,6 +3146,8 @@ bool wxRibbonMSWArtProvider::GetButtonBarButtonSize(
                     int width = wxMax(
                         dc.GetTextExtent(label.Left(i)).GetWidth(),
                         dc.GetTextExtent(label.Mid(i + 1)).GetWidth() + last_line_extra_width);
+                    if(best_width < text_min_width)
+                        best_width = text_min_width;
                     if(width < best_width)
                     {
                         best_width = width;
@@ -3144,8 +3179,49 @@ bool wxRibbonMSWArtProvider::GetButtonBarButtonSize(
             }
             break;
         }
-    };
+    }
     return true;
+}
+
+wxCoord wxRibbonMSWArtProvider::GetButtonBarButtonTextWidth(
+                        wxDC& dc, const wxString& label,
+                        wxRibbonButtonKind kind,
+                        wxRibbonButtonBarButtonState size)
+{
+    wxCoord best_width = 0;
+    dc.SetFont(m_button_bar_label_font);
+
+    if((size & wxRIBBON_BUTTONBAR_BUTTON_SIZE_MASK)
+       == wxRIBBON_BUTTONBAR_BUTTON_LARGE)
+    {
+        best_width = dc.GetTextExtent(label).GetWidth();
+        int last_line_extra_width = 0;
+        if(kind != wxRIBBON_BUTTON_NORMAL && kind != wxRIBBON_BUTTON_TOGGLE)
+        {
+            last_line_extra_width += 8;
+        }
+        size_t i;
+        for(i = 0; i < label.Len(); ++i)
+        {
+            if(wxRibbonCanLabelBreakAtPosition(label, i))
+            {
+                int width = wxMax(
+                    dc.GetTextExtent(label.Left(i)).GetWidth(),
+                    dc.GetTextExtent(label.Mid(i + 1)).GetWidth() + last_line_extra_width);
+                if(width < best_width)
+                {
+                    best_width = width;
+                }
+            }
+        }
+    }
+    else if((size & wxRIBBON_BUTTONBAR_BUTTON_SIZE_MASK)
+       == wxRIBBON_BUTTONBAR_BUTTON_MEDIUM)
+    {
+        best_width = dc.GetTextExtent(label).GetWidth();
+    }
+
+    return best_width;
 }
 
 wxSize wxRibbonMSWArtProvider::GetMinimisedPanelMinimumSize(

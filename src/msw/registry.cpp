@@ -1233,7 +1233,7 @@ static inline bool WriteAsciiString(wxOutputStream& ostr, const wxString& s)
 
 bool wxRegKey::Export(const wxString& filename) const
 {
-#if wxUSE_FFILE && wxUSE_STREAMS
+#if wxUSE_FILE && wxUSE_FFILE && wxUSE_STREAMS
     if ( wxFile::Exists(filename) )
     {
         wxLogError(_("Exporting registry key: file \"%s\" already exists and won't be overwritten."),
@@ -1332,7 +1332,7 @@ wxString wxRegKey::FormatValue(const wxString& name) const
                         case wxT('\\'):
                             // escape special symbol
                             rhs += wxT('\\');
-                            // fall through
+                            wxFALLTHROUGH;
 
                         default:
                             rhs += *p;
@@ -1527,7 +1527,7 @@ long GetMSWViewFlags(wxRegKey::WOW64ViewMode viewMode)
 
         default:
             wxFAIL_MSG("Unknown registry view.");
-            // fall through
+            wxFALLTHROUGH;
 
         case wxRegKey::WOW64ViewMode_Default:
             // Use default registry view for the current application,

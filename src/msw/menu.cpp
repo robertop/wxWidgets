@@ -356,7 +356,7 @@ bool wxMenu::DoInsertOrAppend(wxMenuItem *pItem, size_t pos)
     // Update radio groups data if we're inserting a new menu item.
     // Inserting radio and non-radio item has a different impact
     // on radio groups so we have to handle each case separately.
-    // (Inserting a radio item in the middle of exisiting group extends
+    // (Inserting a radio item in the middle of existing group extends
     // the group, but inserting non-radio item breaks it into two subgroups.)
     //
     bool checkInitially = false;
@@ -372,7 +372,7 @@ bool wxMenu::DoInsertOrAppend(wxMenuItem *pItem, size_t pos)
     {
         if ( m_radioData->UpdateOnInsertNonRadio(pos) )
         {
-            // One of the exisiting groups has been split into two subgroups.
+            // One of the existing groups has been split into two subgroups.
             wxFAIL_MSG(wxS("Inserting non-radio item inside a radio group?"));
         }
     }
@@ -793,9 +793,13 @@ bool wxMenu::MSWCommand(WXUINT WXUNUSED(param), WXWORD id_)
                 UINT menuState = ::GetMenuState(GetHmenu(), id_, MF_BYCOMMAND);
                 checked = (menuState & MF_CHECKED) != 0;
             }
-        }
 
-        SendEvent(id, checked);
+            item->GetMenu()->SendEvent(id, checked);
+        }
+        else
+        {
+            SendEvent(id, checked);
+        }
     }
 
     return true;
@@ -1195,7 +1199,7 @@ void wxMenuBar::RebuildAccelTable()
     size_t nAccelCount = 0;
     size_t i, count = GetMenuCount();
     wxMenuList::iterator it;
-    for ( i = 0, it = m_menus.begin(); i < count; i++, it++ )
+    for ( i = 0, it = m_menus.begin(); i < count; i++, ++it )
     {
         nAccelCount += (*it)->GetAccelCount();
     }
@@ -1205,7 +1209,7 @@ void wxMenuBar::RebuildAccelTable()
         wxAcceleratorEntry *accelEntries = new wxAcceleratorEntry[nAccelCount];
 
         nAccelCount = 0;
-        for ( i = 0, it = m_menus.begin(); i < count; i++, it++ )
+        for ( i = 0, it = m_menus.begin(); i < count; i++, ++it )
         {
             nAccelCount += (*it)->CopyAccels(&accelEntries[nAccelCount]);
         }

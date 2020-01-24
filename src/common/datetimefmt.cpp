@@ -64,9 +64,10 @@
 // helpers shared between datetime.cpp and datetimefmt.cpp
 // ----------------------------------------------------------------------------
 
-extern void InitTm(struct tm& tm);
+extern void wxInitTm(struct tm& tm);
+extern const tm* wxTryGetTm(tm& tmstruct, time_t t, const wxDateTime::TimeZone& tz);
 
-extern wxString CallStrftime(const wxString& format, const tm* tm);
+extern wxString wxCallStrftime(const wxString& format, const tm* tm);
 
 // ----------------------------------------------------------------------------
 // constants (see also datetime.cpp)
@@ -367,42 +368,11 @@ wxString wxDateTime::Format(const wxString& formatp, const TimeZone& tz) const
 
     if ( canUseStrftime )
     {
-        // use strftime()
+        // Try using strftime()
         struct tm tmstruct;
-        struct tm *tm;
-        if ( tz.GetOffset() == -wxGetTimeZone() )
+        if ( const tm* tm = wxTryGetTm(tmstruct, time, tz) )
         {
-            // we are working with local time
-            tm = wxLocaltime_r(&time, &tmstruct);
-
-            // should never happen
-            wxCHECK_MSG( tm, wxEmptyString, wxT("wxLocaltime_r() failed") );
-        }
-        else
-        {
-            time += (int)tz.GetOffset();
-
-#if defined(__VMS__) // time is unsigned so avoid warning
-            int time2 = (int) time;
-            if ( time2 >= 0 )
-#else
-            if ( time >= 0 )
-#endif
-            {
-                tm = wxGmtime_r(&time, &tmstruct);
-
-                // should never happen
-                wxCHECK_MSG( tm, wxEmptyString, wxT("wxGmtime_r() failed") );
-            }
-            else
-            {
-                tm = (struct tm *)NULL;
-            }
-        }
-
-        if ( tm )
-        {
-            return CallStrftime(format, tm);
+            return wxCallStrftime(format, tm);
         }
     }
     //else: use generic code below
@@ -566,7 +536,7 @@ wxString wxDateTime::Format(const wxString& formatp, const TimeZone& tz) const
                         //     corresponding to Feb 29 of a non leap year (which
                         //     may happen if yearReal was leap and year is not)
                         struct tm tmAdjusted;
-                        InitTm(tmAdjusted);
+                        wxInitTm(tmAdjusted);
                         tmAdjusted.tm_hour = tm.hour;
                         tmAdjusted.tm_min = tm.min;
                         tmAdjusted.tm_sec = tm.sec;
@@ -576,7 +546,7 @@ wxString wxDateTime::Format(const wxString& formatp, const TimeZone& tz) const
                         tmAdjusted.tm_mon = tm.mon;
                         tmAdjusted.tm_year = year - 1900;
                         tmAdjusted.tm_isdst = 0; // no DST, already adjusted
-                        wxString str = CallStrftime(*p == wxT('c') ? wxT("%c")
+                        wxString str = wxCallStrftime(*p == wxT('c') ? wxT("%c")
                                                                   : wxT("%x"),
                                                     &tmAdjusted);
 
@@ -650,7 +620,7 @@ wxString wxDateTime::Format(const wxString& formatp, const TimeZone& tz) const
 
                 case wxT('p'):       // AM or PM string
 #ifdef wxHAS_STRFTIME
-                    res += CallStrftime(wxT("%p"), &tmTimeOnly);
+                    res += wxCallStrftime(wxS("%p"), &tmTimeOnly);
 #else // !wxHAS_STRFTIME
                     res += (tmTimeOnly.tm_hour > 12) ? wxT("pm") : wxT("am");
 #endif // wxHAS_STRFTIME/!wxHAS_STRFTIME
@@ -678,7 +648,7 @@ wxString wxDateTime::Format(const wxString& formatp, const TimeZone& tz) const
                 case wxT('X'):       // locale default time representation
                     // just use strftime() to format the time for us
 #ifdef wxHAS_STRFTIME
-                    res += CallStrftime(wxT("%X"), &tmTimeOnly);
+                    res += wxCallStrftime(wxS("%X"), &tmTimeOnly);
 #else // !wxHAS_STRFTIME
                     res += wxString::Format(wxT("%02d:%02d:%02d"),tm.hour, tm.min, tm.sec);
 #endif // wxHAS_STRFTIME/!wxHAS_STRFTIME
@@ -722,7 +692,7 @@ wxString wxDateTime::Format(const wxString& formatp, const TimeZone& tz) const
 
                 case wxT('Z'):       // timezone name
 #ifdef wxHAS_STRFTIME
-                    res += CallStrftime(wxT("%Z"), &tmTimeOnly);
+                    res += wxCallStrftime(wxS("%Z"), &tmTimeOnly);
 #endif
                     break;
 
@@ -874,7 +844,7 @@ wxDateTime::ParseRfc822Date(const wxString& date, wxString::const_iterator *end)
     wxDateTime_t sec = 0;
     if ( *p == ':' )
     {
-        p++;
+        ++p;
         if ( !wxIsdigit(*p) )
             return false;
 
@@ -1063,7 +1033,7 @@ wxDateTime::ParseFormat(const wxString& date,
                 // spaces in the input
                 while ( input != end && wxIsspace(*input) )
                 {
-                    input++;
+                    ++input;
                 }
             }
             else // !space
@@ -1677,12 +1647,7 @@ wxDateTime::ParseFormat(const wxString& date,
 
     Set(tm);
 
-    // If a time zone was specified and it is not the local time zone, we need
-    // to shift the time accordingly.
-    //
-    // Note that avoiding the call to MakeFromTimeZone is necessary to avoid
-    // DST problems.
-    if ( haveTimeZone && timeZone != -wxGetTimeZone() )
+    if ( haveTimeZone )
         MakeFromTimezone(timeZone);
 
     // finally check that the week day is consistent -- if we had it
@@ -1807,7 +1772,7 @@ wxDateTime::ParseDate(const wxString& date, wxString::const_iterator *end)
 
     wxString::const_iterator p = pBegin;
     while ( p != pEnd && wxIsspace(*p) )
-        p++;
+        ++p;
 
     // some special cases
     static struct

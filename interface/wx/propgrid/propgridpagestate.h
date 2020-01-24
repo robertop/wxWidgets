@@ -225,7 +225,14 @@ public:
 class wxPropertyGridIterator : public wxPropertyGridIteratorBase
 {
 public:
-};
+    wxPropertyGridIterator();
+    wxPropertyGridIterator( wxPropertyGridPageState* state,
+                            int flags = wxPG_ITERATE_DEFAULT,
+                            wxPGProperty* property = NULL, int dir = 1 );
+    wxPropertyGridIterator( wxPropertyGridPageState* state,
+                            int flags, int startPos, int dir = 0 );
+    wxPropertyGridIterator( const wxPropertyGridIterator& it );
+    ~wxPropertyGridIterator();};
 
 /**
     Const version of wxPropertyGridIterator.
@@ -242,6 +249,15 @@ public:
         Additional assignment operator.
     */
     const wxPropertyGridConstIterator& operator=( const wxPropertyGridIterator& it );
+
+    wxPropertyGridConstIterator();
+    wxPropertyGridConstIterator( const wxPropertyGridPageState* state,
+                                 int flags = wxPG_ITERATE_DEFAULT,
+                                 const wxPGProperty* property = NULL, int dir = 1 );
+    wxPropertyGridConstIterator( wxPropertyGridPageState* state,
+                                 int flags, int startPos, int dir = 0 );
+    wxPropertyGridConstIterator( const wxPropertyGridConstIterator& it );
+    ~wxPropertyGridConstIterator();
 };
 
 /** @}
@@ -282,18 +298,14 @@ public:
     wxPropertyGridManager.
 
     @remarks
-    - In separate wxPropertyGrid component this class was known as
-    wxPropertyGridState.
-    - Currently this class is not implemented in wxPython.
+    Currently this class is not implemented in wxPython.
 
     @library{wxpropgrid}
     @category{propgrid}
 */
 class wxPropertyGridPageState
 {
-    friend class wxPGProperty;
     friend class wxPropertyGrid;
-    friend class wxPGCanvas;
     friend class wxPropertyGridInterface;
     friend class wxPropertyGridPage;
     friend class wxPropertyGridManager;

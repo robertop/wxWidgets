@@ -559,9 +559,6 @@ public:
     // priority
         // Sets the priority to "prio" which must be in 0..100 range (see
         // also wxPRIORITY_XXX constants).
-        //
-        // NB: under MSW the priority can only be set after the thread is
-        //     created (but possibly before it is launched)
     void SetPriority(unsigned int prio);
 
         // Get the current priority.
@@ -622,15 +619,15 @@ protected:
     // in the context of the thread that called Kill().
     virtual void OnKill() {}
 
+    // called when the thread exits - in the context of this thread
+    //
+    // NB: this function will not be called if the thread is Kill()ed
+    virtual void OnExit() {}
+
 private:
     // no copy ctor/assignment operator
     wxThread(const wxThread&);
     wxThread& operator=(const wxThread&);
-
-    // called when the thread exits - in the context of this thread
-    //
-    // NB: this function will not be called if the thread is Kill()ed
-    virtual void OnExit() { }
 
     friend class wxThreadInternal;
     friend class wxThreadModule;

@@ -279,6 +279,14 @@ private:
 
 
 wxDialUpManagerImpl::wxDialUpManagerImpl()
+   : m_BeaconHost(WXDIALUP_MANAGER_DEFAULT_BEACONHOST)
+#ifdef __SGI__
+   , m_ConnectCommand("/usr/etc/ppp")
+#elif defined(__LINUX__)
+   // default values for Debian/GNU linux
+   , m_ConnectCommand("pon")
+   , m_HangUpCommand("poff")
+#endif
 {
    m_IsOnline =
    m_connCard = Net_Unknown;
@@ -286,16 +294,7 @@ wxDialUpManagerImpl::wxDialUpManagerImpl()
    m_timer = NULL;
    m_CanUseIfconfig = -1; // unknown
    m_CanUsePing = -1; // unknown
-   m_BeaconHost = WXDIALUP_MANAGER_DEFAULT_BEACONHOST;
    m_BeaconPort = 80;
-
-#ifdef __SGI__
-   m_ConnectCommand = wxT("/usr/etc/ppp");
-#elif defined(__LINUX__)
-   // default values for Debian/GNU linux
-   m_ConnectCommand = wxT("pon");
-   m_HangUpCommand = wxT("poff");
-#endif
 
    wxChar * dial = wxGetenv(wxT("WXDIALUP_DIALCMD"));
    wxChar * hup = wxGetenv(wxT("WXDIALUP_HUPCMD"));
@@ -722,11 +721,12 @@ wxDialUpManagerImpl::CheckIfconfig()
                     hasModem = strstr(output.fn_str(),"ipdptp") != NULL;
                     hasLAN = strstr(output.fn_str(), "hme") != NULL;
 #elif defined(__LINUX__) || defined (__FREEBSD__) || defined (__QNX__) || \
-      defined(__OPENBSD__)
+      defined(__OPENBSD__) || defined(__DARWIN__)
                     hasModem = strstr(output.fn_str(),"ppp")    // ppp
                         || strstr(output.fn_str(),"sl")  // slip
                         || strstr(output.fn_str(),"pl"); // plip
-                    hasLAN = strstr(output.fn_str(), "eth") != NULL;
+                    hasLAN = strstr(output.fn_str(), "eth") != NULL
+                        || strstr(output.fn_str(),"en") != NULL; // en0, en1 osx
 #elif defined(__SGI__)  // IRIX
                     hasModem = strstr(output.fn_str(), "ppp") != NULL; // PPP
 #elif defined(__HPUX__)

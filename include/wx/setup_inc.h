@@ -180,16 +180,13 @@
 // Unicode support
 // ----------------------------------------------------------------------------
 
-// These settings are obsolete: the library is always built in Unicode mode
+// This option is deprecated: the library should be always built in Unicode mode
 // now, only set wxUSE_UNICODE to 0 to compile legacy code in ANSI mode if
 // absolutely necessary -- updating it is strongly recommended as the ANSI mode
 // will disappear completely in future wxWidgets releases.
 #ifndef wxUSE_UNICODE
     #define wxUSE_UNICODE 1
 #endif
-
-// wxUSE_WCHAR_T is required by wxWidgets now, don't change.
-#define wxUSE_WCHAR_T 1
 
 // ----------------------------------------------------------------------------
 // global features
@@ -387,18 +384,6 @@
 // Recommended setting: 0 to remain compatible with the official builds of
 // wxWidgets.
 #define wxUSE_STD_STRING_CONV_IN_WXSTRING wxUSE_STL
-
-// VC++ 4.2 and above allows <iostream> and <iostream.h> but you can't mix
-// them. Set this option to 1 to use <iostream.h>, 0 to use <iostream>.
-//
-// Note that newer compilers (including VC++ 7.1 and later) don't support
-// wxUSE_IOSTREAMH == 1 and so <iostream> will be used anyhow.
-//
-// Default is 0.
-//
-// Recommended setting: 0, only set to 1 if you use a really old compiler
-#define wxUSE_IOSTREAMH     0
-
 
 // ----------------------------------------------------------------------------
 // non GUI features selection
@@ -607,6 +592,22 @@
 // wxUSE_LIBPNG
 #define wxUSE_ZLIB          1
 
+// Set to 1 if liblzma is available to enable wxLZMA{Input,Output}Stream
+// classes.
+//
+// Notice that if you enable this build option when not using configure or
+// CMake, you need to ensure that liblzma headers and libraries are available
+// (i.e. by building the library yourself or downloading its binaries) and can
+// be found, either by copying them to one of the locations searched by the
+// compiler/linker by default (e.g. any of the directories in the INCLUDE or
+// LIB environment variables, respectively, when using MSVC) or modify the
+// make- or project files to add references to these directories.
+//
+// Default is 0 under MSW, auto-detected by configure.
+//
+// Recommended setting: 1 if you need LZMA compression.
+#define wxUSE_LIBLZMA       0
+
 // If enabled, the code written by Apple will be used to write, in a portable
 // way, float on the disk. See extended.c for the license which is different
 // from wxWidgets one.
@@ -755,6 +756,13 @@
 #define wxUSE_WEBVIEW_IE 0
 #endif
 
+// Use the Edge (Chromium) wxWebView backend (Requires WebView2 SDK)
+//
+// Default is 0 because WebView2 is not always available, set it to 1 if you do have it.
+//
+// Recommended setting: 1 when building for Windows with WebView2 SDK
+#define wxUSE_WEBVIEW_EDGE 0
+
 // Use the WebKit wxWebView backend
 //
 // Default is 1 on GTK and OSX
@@ -779,26 +787,26 @@
 
 // Enable wxGraphicsContext and related classes for a modern 2D drawing API.
 //
-// Default is 1 except if you're using a non-Microsoft compiler under Windows
-// as only MSVC is known to ship with at least gdiplus.h which is required to
-// compile GDI+-based implementation of wxGraphicsContext (MSVC10 and later
-// versions also include d2d1.h required for Direct2D-based implementation).
-// For other compilers (e.g. mingw32) you may need to install the headers (and
-// just the headers) yourself. If you do, change the setting below manually.
+// Default is 1 except if you're using a compiler without support for GDI+
+// under MSW, i.e. gdiplus.h and related headers (MSVC and MinGW >= 4.8 are
+// known to have them). For other compilers (e.g. older mingw32) you may need
+// to install the headers (and just the headers) yourself. If you do, change
+// the setting below manually.
 //
 // Recommended setting: 1 if supported by the compilation environment
 
-// notice that we can't use wxCHECK_VISUALC_VERSION() here as this file is
-// included from wx/platform.h before wxCHECK_VISUALC_VERSION() is defined
-#ifdef _MSC_VER
-#   define wxUSE_GRAPHICS_CONTEXT 1
+// Notice that we can't use wxCHECK_VISUALC_VERSION() nor wxCHECK_GCC_VERSION()
+// here as this file is included from wx/platform.h before they're defined.
+#if defined(_MSC_VER) || \
+    (defined(__MINGW32__) && (__GNUC__ > 4 || __GNUC_MINOR__ >= 8))
+#define wxUSE_GRAPHICS_CONTEXT 1
 #else
-    // Disable support for other Windows compilers, enable it if your compiler
-    // comes with new enough SDK or you installed the headers manually.
-    //
-    // Notice that this will be set by configure under non-Windows platforms
-    // anyhow so the value there is not important.
-#   define wxUSE_GRAPHICS_CONTEXT 0
+// Disable support for other Windows compilers, enable it if your compiler
+// comes with new enough SDK or you installed the headers manually.
+//
+// Notice that this will be set by configure under non-Windows platforms
+// anyhow so the value there is not important.
+#define wxUSE_GRAPHICS_CONTEXT 0
 #endif
 
 // Enable wxGraphicsContext implementation using Cairo library.
@@ -902,6 +910,14 @@
 #define wxUSE_TOGGLEBTN     1   // requires wxButton
 #define wxUSE_TREECTRL      1   // wxTreeCtrl
 #define wxUSE_TREELISTCTRL  1   // wxTreeListCtrl
+
+// Use generic version of wxDataViewCtrl even if a native one is available?
+//
+// Default is 1.
+//
+// Recommended setting: 1, but can be set to 0 if your program is affected by
+// the native control limitations.
+#define wxUSE_NATIVE_DATAVIEWCTRL 1
 
 // Use a status bar class? Depending on the value of wxUSE_NATIVE_STATUSBAR
 // below either wxStatusBar95 or a generic wxStatusBar will be used.
@@ -1137,6 +1153,16 @@
 //
 // Recommended setting: 1 (but can be safely disabled if you don't use it)
 #define wxUSE_PREFERENCES_EDITOR 1
+
+// wxFont::AddPrivateFont() allows to use fonts not installed on the system by
+// loading them from font files during run-time.
+//
+// Default is 1 except under Unix where it will be turned off by configure if
+// the required libraries are not available or not new enough.
+//
+// Recommended setting: 1 (but can be safely disabled if you don't use it and
+// want to avoid extra dependencies under Linux, for example).
+#define wxUSE_PRIVATE_FONTS 1
 
 // wxRichToolTip is a customizable tooltip class which has more functionality
 // than the stock (but native, unlike this class) wxToolTip.
@@ -1529,5 +1555,4 @@
 #define wxUSE_THEME_METAL   0
 #define wxUSE_THEME_MONO    0
 #define wxUSE_THEME_WIN32   0
-
 

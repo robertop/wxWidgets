@@ -283,9 +283,9 @@ static int wxCMPFUNC_CONV wxDirCtrlStringCompareFunction(const wxString& strFirs
 
 wxDirItemData::wxDirItemData(const wxString& path, const wxString& name,
                              bool isDir)
+    : m_path(path)
+    , m_name(name)
 {
-    m_path = path;
-    m_name = name;
     /* Insert logic to detect hidden files here
      * In UnixLand we just check whether the first char is a dot
      * For FileNameFromPath read LastDirNameInThisPath ;-) */
@@ -426,7 +426,7 @@ bool wxGenericDirCtrl::Create(wxWindow *parent,
     // instead of scaling.
     // if (!wxTheFileIconsTable->IsOk())
     //     wxTheFileIconsTable->SetSize(scaledSize);
-        
+
     // Meanwhile, in your application initialisation, where you have better knowledge of what
     // icons are available and whether to scale, you can do this:
     //
@@ -465,7 +465,7 @@ void wxGenericDirCtrl::Init()
 {
     m_showHidden = false;
     m_currentFilter = 0;
-    m_currentFilterStr = wxEmptyString; // Default: any file
+    m_currentFilterStr.clear(); // Default: any file
     m_treeCtrl = NULL;
     m_filterListCtrl = NULL;
 }
@@ -694,7 +694,7 @@ void wxGenericDirCtrl::PopulateNode(wxTreeItemId parentId)
 
     wxASSERT(data);
 
-    wxString search,path,filename;
+    wxString path;
 
     wxString dirName(data->m_path);
 
@@ -1441,10 +1441,10 @@ public:
 };
 
 wxFileIconsTable::wxFileIconsTable()
+    : m_size(16, 16)
 {
     m_HashTable = NULL;
     m_smallImageList = NULL;
-    m_size = wxSize(16, 16);
 }
 
 wxFileIconsTable::~wxFileIconsTable()
@@ -1608,7 +1608,7 @@ int wxFileIconsTable::GetIconID(const wxString& extension, const wxString& mime)
             {
                 // Double, using normal quality scaling.
                 img.Rescale(2*img.GetWidth(), 2*img.GetHeight());
-                
+
                 // Then scale to the desired size. This gives the best quality,
                 // and better than CreateAntialiasedBitmap.
                 if ((img.GetWidth() != size) || (img.GetHeight() != size))

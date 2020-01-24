@@ -104,6 +104,13 @@ enum wxAuiToolBarArtSetting
     */
     wxAUI_TBART_OVERFLOW_SIZE = 2
 
+    /**
+      Drop down button size in wxAuiToolBar.
+
+      @since 3.1.2
+    */
+    wxAUI_TBART_DROPDOWN_SIZE = 3
+
 };
 
 /**
@@ -172,11 +179,11 @@ public:
     */
     int GetToolId() const;
 
-    
+
     void SetDropDownClicked(bool c);
     void SetClickPoint(const wxPoint& p);
     void SetItemRect(const wxRect& r);
-    void SetToolId(int toolId);    
+    void SetToolId(int toolId);
 };
 
 wxEventType wxEVT_AUITOOLBAR_TOOL_DROPDOWN;

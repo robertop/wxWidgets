@@ -549,6 +549,9 @@ public:
 #endif
 
 private:
+#if USES_GENERICTLW
+    void HideOnDeactivate();
+#endif // USES_GENERICTLW
     wxComboCtrlBase*    m_combo;
 
     wxDECLARE_EVENT_TABLE();
@@ -586,10 +589,22 @@ void wxComboPopupWindowEvtHandler::OnActivate( wxActivateEvent& event )
     if ( !event.GetActive() )
     {
         // Tell combo control that we are dismissed.
-        m_combo->HidePopup(true);
-
+#ifdef __WXMSW__
+        // We need to hide the popup but calling ::ShowWindow() directly from WM_ACTIVATE
+        // event handler causes some side effects like calling this handler again (Win 7)
+        // or setting the focus improperly (Win 10), so postpone it slightly.
+        // See wxPopupTransientWindow::MSWHandleMessage().
+        CallAfter(&wxComboPopupWindowEvtHandler::HideOnDeactivate);
+#else // !__WXMSW__
+        HideOnDeactivate();
+#endif // __WXMSW__ / !__WXMSW__
         event.Skip();
     }
+}
+
+void wxComboPopupWindowEvtHandler::HideOnDeactivate()
+{
+    m_combo->HidePopup(true);
 }
 #endif
 
@@ -751,9 +766,7 @@ void wxComboBoxExtraInputHandler::OnKey(wxKeyEvent& event)
 
     if ( !combo->GetEventHandler()->ProcessEvent(redirectedEvent) )
     {
-        // Don't let TAB through to the text ctrl - looks ugly
-        if ( event.GetKeyCode() != WXK_TAB )
-            event.Skip();
+        event.Skip();
     }
 }
 
@@ -1096,15 +1109,10 @@ wxComboCtrlBase::CreateTextCtrl(int style)
                        style);
 
         // Connecting the events is currently the most reliable way
-        wxWindowID id = m_text->GetId();
-        m_text->Connect(id, wxEVT_TEXT,
-                        wxCommandEventHandler(wxComboCtrlBase::OnTextCtrlEvent),
-                        NULL, this);
+        m_text->Bind(wxEVT_TEXT, &wxComboCtrlBase::OnTextCtrlEvent, this);
         if ( style & wxTE_PROCESS_ENTER )
         {
-            m_text->Connect(id, wxEVT_TEXT_ENTER,
-                            wxCommandEventHandler(wxComboCtrlBase::OnTextCtrlEvent),
-                            NULL, this);
+            m_text->Bind(wxEVT_TEXT_ENTER, &wxComboCtrlBase::OnTextCtrlEvent, this);
         }
 
         m_text->SetHint(m_hintText);
@@ -1366,7 +1374,7 @@ void wxComboCtrlBase::PositionTextCtrl( int textCtrlXAdjust, int textCtrlYAdjust
 
 wxSize wxComboCtrlBase::DoGetBestSize() const
 {
-    int width = m_text ? m_text->GetBestSize().x : 80;
+    int width = m_text ? m_text->GetBestSize().x : FromDIP(80);
 
     return GetSizeFromTextSize(width);
 }
@@ -1996,7 +2004,9 @@ void wxComboCtrlBase::HandleNormalMouseEvent( wxMouseEvent& event )
             kevent.m_keyCode = event.GetWheelRotation() > 0
                                ? WXK_UP
                                : WXK_DOWN;
-            GetEventHandler()->ProcessEvent(kevent);
+
+            if (!GetEventHandler()->ProcessEvent(kevent))
+                event.Skip();
         }
         else
         {
@@ -2078,7 +2088,7 @@ void wxComboCtrlBase::OnFocusEvent( wxFocusEvent& event )
 {
     // On Mac, setting focus here led to infinite recursion so
     // m_resetFocus is used as a guard
-    
+
     if ( event.GetEventType() == wxEVT_SET_FOCUS )
     {
         if ( !m_resetFocus && GetTextCtrl() && !GetTextCtrl()->HasFocus() )
@@ -2088,7 +2098,7 @@ void wxComboCtrlBase::OnFocusEvent( wxFocusEvent& event )
             m_resetFocus = false;
         }
     }
-    
+
     Refresh();
 }
 
@@ -2281,8 +2291,8 @@ void wxComboCtrlBase::ShowPopup()
     int maxHeightPopup;
     wxSize ctrlSz = GetSize();
 
-    screenHeight = wxSystemSettings::GetMetric( wxSYS_SCREEN_Y );
-    scrPos = GetParent()->ClientToScreen(GetPosition());
+    screenHeight = wxSystemSettings::GetMetric( wxSYS_SCREEN_Y, this );
+    scrPos = GetScreenPosition();
 
     spaceAbove = scrPos.y;
     spaceBelow = screenHeight - spaceAbove - ctrlSz.y;
@@ -2359,7 +2369,7 @@ void wxComboCtrlBase::ShowPopup()
     if ( wxTheApp->GetLayoutDirection() == wxLayout_RightToLeft )
         leftX -= ctrlSz.x;
 
-    int screenWidth = wxSystemSettings::GetMetric( wxSYS_SCREEN_X );
+    int screenWidth = wxSystemSettings::GetMetric( wxSYS_SCREEN_X, this );
 
     // If there is not enough horizontal space, anchor on the other side.
     // If there is no space even then, place the popup at x 0.
@@ -2576,8 +2586,9 @@ void wxComboCtrlBase::OnPopupDismiss(bool generateEvent)
 void wxComboCtrlBase::HidePopup(bool generateEvent)
 {
     // Should be able to call this without popup interface
-    if ( IsPopupWindowState(Hidden) )
+    if ( IsPopupWindowState(Hidden) || IsPopupWindowState(Closing) )
         return;
+    m_popupWinState = Closing; // To prevent from reentering
 
     // transfer value and show it in textctrl, if any
     if ( !IsPopupWindowState(Animating) )

@@ -79,7 +79,7 @@ wxWidgets first-tier "ports", ie implementations of wxWidgets API, are:
 
 @li wxMSW: This is the native port for Microsoft Windows systems (from Windows
 XP up to Windows 10), either 32 or 64 bits. The primarily supported compilers
-are Microsoft Visual C++ (versions 2003 up to 2017 are supported, at least 2005
+are Microsoft Visual C++ (versions 2003 up to 2019 are supported, at least 2005
 is recommended) and GNU g++ (either from the traditional MinGW, TDM-GCC or
 MinGW-w64 distributions).
 
@@ -116,7 +116,7 @@ Additionally, the latest version can always be retrieved from our version
 control system using Git (https://github.com/wxWidgets/wxWidgets).
 
 wxWidgets documentation that you are reading is also available online at
-http://docs.wxwidgets.org/trunk/ and please also visit our wiki at
+https://docs.wxwidgets.org/trunk/ and please also visit our wiki at
 https://wiki.wxwidgets.org/ for user-contributed contents.
 
 And if you have any questions, you can join wxWidgets community using

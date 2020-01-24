@@ -14,7 +14,7 @@ dnl ---------------------------------------------------------------------------
 dnl initialization
 dnl ---------------------------------------------------------------------------
 
-AC_INIT([wxWidgets], [3.1.1], [wx-dev@googlegroups.com])
+AC_INIT([wxWidgets], [3.1.4], [wx-dev@googlegroups.com])
 
 dnl the file passed to AC_CONFIG_SRCDIR should be specific to our package
 AC_CONFIG_SRCDIR([wx-config.in])
@@ -40,7 +40,7 @@ dnl wx_release_number += 1
 
 wx_major_version_number=3
 wx_minor_version_number=1
-wx_release_number=1
+wx_release_number=4
 wx_subrelease_number=0
 
 WX_RELEASE=$wx_major_version_number.$wx_minor_version_number
@@ -52,7 +52,7 @@ WX_MSW_VERSION=$wx_major_version_number$wx_minor_version_number$wx_release_numbe
 
 dnl Autoconf-2.60 changed the meaning of top_builddir variable, so we have
 dnl to use our own replacement that will work with both 2.5x and 2.60+:
-wx_top_builddir="`pwd`"
+wx_top_builddir="`pwd -W 2> /dev/null || pwd`"
 AC_SUBST(wx_top_builddir)
 
 
@@ -87,6 +87,7 @@ USE_SYSV=                           dnl any System V
 USE_VMS=
 USE_ULTRIX=
 USE_UNIXWARE=
+USE_HAIKU=
 
 dnl hardware platform
 USE_ALPHA=
@@ -262,7 +263,7 @@ case "${host}" in
     AC_DEFINE(__UNIXWARE__)
   ;;
 
-  *-*-cygwin* | *-*-mingw32* )
+  *-*-cygwin* | *-*-mingw32* | *-*-mingw64* )
     dnl MBN: some of the defines have been moved after toolkit detection
     dnl      because for wxMotif/wxGTK/wxX11 to build on Cygwin
     dnl      USE_UNIX  must be set and not USE_WIN32
@@ -292,6 +293,12 @@ case "${host}" in
     dnl leave USE_UNIX on - BeOS is sufficiently Unix-like for this
     USE_BEOS=1
     AC_DEFINE(__BEOS__)
+  ;;
+
+  *-*-haiku* )
+    USE_HAIKU=1
+    AC_DEFINE(__HAIKU__)
+    DEFAULT_DEFAULT_wxUSE_QT=1
   ;;
 
   *)
@@ -328,6 +335,7 @@ DEFAULT_wxUSE_DMALLOC=no
 DEFAULT_wxUSE_LIBGNOMEVFS=no
 DEFAULT_wxUSE_LIBMSPACK=no
 DEFAULT_wxUSE_LIBSDL=no
+DEFAULT_wxUSE_CAIRO=no
 
 dnl features disabled by default
 DEFAULT_wxUSE_ACCESSIBILITY=no
@@ -401,6 +409,8 @@ if test "$wxUSE_ALL_FEATURES" = "no"; then
     DEFAULT_wxUSE_MEDIACTRL=no
 fi
 
+AC_ARG_WITH(dpi, [  --with-dpi=none|system|per-monitor   set dpi-awareness (Win32 only), default is per-monitor], [wxWITH_DPI_MANIFEST="$withval"])
+
 dnl ---------------------------------------------------------------------------
 dnl port selection
 dnl ---------------------------------------------------------------------------
@@ -414,7 +424,7 @@ fi
 
 dnl we use AC_ARG_WITH and not WX_ARG_WITH for the toolkit options as they
 dnl shouldn't default to wxUSE_ALL_FEATURES
-AC_ARG_WITH(gtk,          [[  --with-gtk[=VERSION]    use GTK+, VERSION can be 3, 2 (default), 1 or "any"]], [wxUSE_GTK="$withval" CACHE_GTK=1 TOOLKIT_GIVEN=1])
+AC_ARG_WITH(gtk,          [[  --with-gtk[=VERSION]    use GTK+, VERSION can be 4 (EXPERIMENTAL), 3, 2 (default), 1 or "any"]], [wxUSE_GTK="$withval" CACHE_GTK=1 TOOLKIT_GIVEN=1])
 WX_ARG_ONLY_WITH(motif,         [  --with-motif            use Motif/Lesstif], [wxUSE_MOTIF="$withval" CACHE_MOTIF=1 TOOLKIT_GIVEN=1])
 WX_ARG_ONLY_WITH(osx_cocoa,     [  --with-osx_cocoa        use Mac OS X (Cocoa)], [wxUSE_OSX_COCOA="$withval" CACHE_OSX_COCOA=1 TOOLKIT_GIVEN=1])
 WX_ARG_ONLY_WITH(osx_iphone,    [  --with-osx_iphone       use iPhone OS X port], [wxUSE_OSX_IPHONE="$withval" CACHE_OSX_IPHONE=1 TOOLKIT_GIVEN=1])
@@ -525,14 +535,12 @@ WX_ARG_SYS_WITH(libpng,    [  --with-libpng           use libpng (PNG image form
 WX_ARG_SYS_WITH(libjpeg,   [  --with-libjpeg          use libjpeg (JPEG file format)], wxUSE_LIBJPEG)
 WX_ARG_SYS_WITH(libtiff,   [  --with-libtiff          use libtiff (TIFF file format)], wxUSE_LIBTIFF)
 
-dnl We don't provide built-in versions of these libraries, so if the use of
-dnl system libraries is explicitly disabled, we can't use them at all.
+dnl We don't provide built-in version of this library, so if the use of system
+dnl libraries is explicitly disabled, we can't use it at all.
 if test "$wxUSE_LIBTIFF" = "builtin" ; then
     wxUSE_LIBJBIG=no
-    wxUSE_LIBLZMA=no
 else
-    WX_ARG_WITHOUT(libjbig,    [  --without-libjbig       don't use libjbig in libtiff even if available)], wxUSE_LIBJBIG)
-    WX_ARG_WITHOUT(liblzma,    [  --without-liblzma       don't use liblzma in libtiff even if available)], wxUSE_LIBLZMA)
+    WX_ARG_WITHOUT(libjbig,    [  --without-libjbig       don't use libjbig in libtiff even if available], wxUSE_LIBJBIG)
 fi
 
 WX_ARG_SYS_WITH(libxpm,    [  --with-libxpm           use libxpm (XPM file format)], wxUSE_LIBXPM)
@@ -544,14 +552,27 @@ WX_ARG_WITH(libnotify,     [  --with-libnotify        use libnotify for notifica
 WX_ARG_WITH(opengl,        [  --with-opengl           use OpenGL (or Mesa)], wxUSE_OPENGL)
 WX_ARG_WITH(xtest,         [  --with-xtest            use XTest extension], wxUSE_XTEST)
 
+if test "$wxUSE_GTK" = 1 -o "$wxUSE_QT" = 1 -o "$wxUSE_X11" = 1; then
+    wx_needs_cairo_for_gc=1
+fi
+
+dnl If we do _not_ need Cairo anyhow, provide an option to request enabling it
+dnl explicitly.
+if test "$wx_needs_cairo_for_gc" != 1; then
+WX_ARG_WITH(cairo,         [  --with-cairo            use Cairo-based wxGraphicsContext implementation], wxUSE_CAIRO)
+fi
+
 fi
 dnl for GUI only
 
 WX_ARG_WITH(dmalloc,       [  --with-dmalloc          use dmalloc library (http://dmalloc.com/)], wxUSE_DMALLOC)
 WX_ARG_WITH(sdl,           [  --with-sdl              use SDL for audio on Unix], wxUSE_LIBSDL)
 WX_ARG_SYS_WITH(regex,     [  --with-regex            enable support for wxRegEx class], wxUSE_REGEX)
+WX_ARG_WITH(liblzma,       [  --with-liblzma          use LZMA compression)], wxUSE_LIBLZMA)
 WX_ARG_SYS_WITH(zlib,      [  --with-zlib             use zlib for LZW compression], wxUSE_ZLIB)
 WX_ARG_SYS_WITH(expat,     [  --with-expat            enable XML support using expat parser], wxUSE_EXPAT)
+
+if test "$USE_DARWIN" = 1; then
 
 AC_ARG_WITH(macosx-sdk,    [  --with-macosx-sdk=PATH  use an OS X SDK at PATH], [
         wxUSE_MACOSX_SDK=$withval
@@ -562,6 +583,8 @@ AC_ARG_WITH(macosx-version-min,    [  --with-macosx-version-min=VER   build bina
         wxUSE_MACOSX_VERSION_MIN=$withval
         wx_cv_use_macosx_version_min="wxUSE_MACOSX_VERSION_MIN=$withval"
     ])
+
+fi dnl USE_DARWIN
 
 dnl ---------------------------------------------------------------------------
 dnl debugging options
@@ -629,7 +652,7 @@ dnl ---------------------------------------------------------------------------
 
 WX_ARG_DISABLE(shared,     [  --disable-shared        create static library instead of shared], wxUSE_SHARED)
 AC_ARG_ENABLE(cxx11,       [  --enable-cxx11          use C++11 compiler if available], [wxWITH_CXX=11 wxWITH_CXX_IS_OPTIONAL=1])
-AC_ARG_WITH(cxx,           [  --with-cxx=11|14        use the given C++11], [wxWITH_CXX="$withval"])
+AC_ARG_WITH(cxx,           [  --with-cxx=11|14|17     use the given C++ dialect], [wxWITH_CXX="$withval"])
 WX_ARG_ENABLE(stl,         [  --enable-stl            use standard C++ classes for everything], wxUSE_STL)
 if test "$wxUSE_STL" = "yes"; then
     DEFAULT_wxUSE_STD_CONTAINERS=yes
@@ -656,20 +679,21 @@ WX_ARG_ENABLE(no_exceptions, [  --enable-no_exceptions  create code without C++ 
 WX_ARG_ENABLE(permissive,    [  --enable-permissive     compile code disregarding strict ANSI], wxUSE_PERMISSIVE)
 WX_ARG_DISABLE(vararg_macros,[  --disable-vararg_macros don't use vararg macros, even if they are supported], wxUSE_VARARG_MACROS)
 
+if test "$USE_DARWIN" = 1; then
 WX_ARG_ENABLE_PARAM(universal_binary, [[  --enable-universal_binary=archs create universal binary for the specified (or all supported) architectures]], wxUSE_UNIVERSAL_BINARY)
 WX_ARG_ENABLE_PARAM(macosx_arch,      [[  --enable-macosx_arch=ARCH  build for just the specified architecture]], wxUSE_MAC_ARCH)
+fi dnl USE_DARWIN
 
 WX_ARG_ENABLE(compat28,      [  --enable-compat28       enable wxWidgets 2.8 compatibility], WXWIN_COMPATIBILITY_2_8)
 WX_ARG_DISABLE(compat30,     [  --disable-compat30      disable wxWidgets 3.0 compatibility], WXWIN_COMPATIBILITY_3_0)
 
 WX_ARG_DISABLE(rpath,        [  --disable-rpath         disable use of rpath for uninstalled builds], wxUSE_RPATH)
 
-WX_ARG_ENABLE(objc_uniquifying,[  --enable-objc_uniquifying enable Objective-C class name uniquifying], wxUSE_OBJC_UNIQUIFYING)
-
 WX_ARG_DISABLE(visibility,   [  --disable-visibility    disable use of ELF symbols visibility even if supported], wxUSE_VISIBILITY)
 WX_ARG_DISABLE(tls,          [  --disable-tls           disable use of compiler TLS support], wxUSE_COMPILER_TLS)
 
-WX_ARG_ENABLE(repro_build,  [  --enable-repro-build    enable reproducible build mode], wxUSE_REPRODUCIBLE_BUILD)
+WX_ARG_ENABLE(repro_build,   [  --enable-repro-build    enable reproducible build mode], wxUSE_REPRODUCIBLE_BUILD)
+WX_ARG_ENABLE(pch,           [  --enable-pch            use precompiled headers if possible (off by default)], wxUSE_PCH)
 
 dnl ---------------------------------------------------------------------------
 dnl optional non GUI features
@@ -898,6 +922,7 @@ WX_ARG_FEATURE(combobox,    [  --enable-combobox       use wxComboBox class], wx
 WX_ARG_FEATURE(comboctrl,   [  --enable-comboctrl      use wxComboCtrl class], wxUSE_COMBOCTRL)
 WX_ARG_FEATURE(commandlinkbutton, [  --enable-commandlinkbutton      use wxCommmandLinkButton class], wxUSE_COMMANDLINKBUTTON)
 WX_ARG_FEATURE(dataviewctrl,[  --enable-dataviewctrl   use wxDataViewCtrl class], wxUSE_DATAVIEWCTRL)
+WX_ARG_DISABLE(nativedvc,   [  --disable-nativedvc     disable use of native wxDataViewCtrl even if available], wxUSE_NATIVE_DATAVIEWCTRL)
 WX_ARG_FEATURE(datepick,    [  --enable-datepick       use wxDatePickerCtrl class], wxUSE_DATEPICKCTRL)
 WX_ARG_FEATURE(detect_sm,   [  --enable-detect_sm      use code to detect X11 session manager], wxUSE_DETECT_SM)
 WX_ARG_FEATURE(dirpicker,   [  --enable-dirpicker      use wxDirPickerCtrl class], wxUSE_DIRPICKERCTRL)
@@ -920,6 +945,7 @@ WX_ARG_FEATURE(notifmsg,    [  --enable-notifmsg       use wxNotificationMessage
 WX_ARG_FEATURE(odcombobox,  [  --enable-odcombobox     use wxOwnerDrawnComboBox class], wxUSE_ODCOMBOBOX)
 WX_ARG_FEATURE(popupwin,    [  --enable-popupwin       use wxPopUpWindow class], wxUSE_POPUPWIN)
 WX_ARG_FEATURE(prefseditor, [  --enable-prefseditor    use wxPreferencesEditor class], wxUSE_PREFERENCES_EDITOR)
+WX_ARG_FEATURE(privatefonts,[  --enable-privatefonts   provide wxFont::AddPrivateFont() method], wxUSE_PRIVATE_FONTS)
 WX_ARG_FEATURE(radiobox,    [  --enable-radiobox       use wxRadioBox class], wxUSE_RADIOBOX)
 WX_ARG_FEATURE(radiobtn,    [  --enable-radiobtn       use wxRadioButton class], wxUSE_RADIOBTN)
 WX_ARG_FEATURE(richmsgdlg,  [  --enable-richmsgdlg     use wxRichMessageDialog class], wxUSE_RICHMSGDLG)
@@ -940,7 +966,7 @@ WX_ARG_FEATURE(statusbar,   [  --enable-statusbar      use wxStatusBar class], w
 WX_ARG_FEATURE(taskbaricon, [  --enable-taskbaricon    use wxTaskBarIcon class], wxUSE_TASKBARICON)
 WX_ARG_FEATURE(tbarnative,  [  --enable-tbarnative     use native wxToolBar class], wxUSE_TOOLBAR_NATIVE)
 WX_ARG_FEATURE(textctrl,    [  --enable-textctrl       use wxTextCtrl class], wxUSE_TEXTCTRL)
-WX_ARG_FEATURE(datepick,    [  --enable-timepick       use wxTimePickerCtrl class], wxUSE_TIMEPICKCTRL)
+WX_ARG_FEATURE(timepick,    [  --enable-timepick       use wxTimePickerCtrl class], wxUSE_TIMEPICKCTRL)
 WX_ARG_FEATURE(tipwindow,   [  --enable-tipwindow      use wxTipWindow class], wxUSE_TIPWINDOW)
 WX_ARG_FEATURE(togglebtn,   [  --enable-togglebtn      use wxToggleButton class], wxUSE_TOGGLEBTN)
 WX_ARG_FEATURE(toolbar,     [  --enable-toolbar        use wxToolBar class], wxUSE_TOOLBAR)
@@ -1095,8 +1121,14 @@ if test -n "$wxWITH_CXX"; then
             HAVE_CXX11=1
             ;;
 
+        17)
+            dnl This is similar to 14 above.
+            AX_CXX_COMPILE_STDCXX(17)
+            HAVE_CXX11=1
+            ;;
+
         *)
-            AC_MSG_ERROR([Invalid --with-cxx="$wxWITH_CXX" option value, only 11 or 14 supported])
+            AC_MSG_ERROR([Invalid --with-cxx="$wxWITH_CXX" option value, only 11, 14 or 17 supported])
     esac
 
     if test "$HAVE_CXX11" = "1" ; then
@@ -1105,6 +1137,18 @@ if test -n "$wxWITH_CXX"; then
         OBJCXXFLAGS="$OBJCXXFLAGS $switch"
     fi
 fi
+
+case "$wxWITH_DPI_MANIFEST" in
+    none)
+        USE_DPI_AWARE_MANIFEST=0 ;;
+    system)
+        USE_DPI_AWARE_MANIFEST=1 ;;
+    ''|per-monitor)
+        USE_DPI_AWARE_MANIFEST=2 ;;
+    *)
+        USE_DPI_AWARE_MANIFEST=0
+        AC_MSG_WARN([Unsupported DPI awareness value "$wxWITH_DPI_MANIFEST" ignored.])
+esac
 
 dnl ar command
 dnl   defines AR with the appropriate command
@@ -1121,7 +1165,10 @@ dnl ---------------------------------------------------------------------------
 dnl Mac-specific SDK/architectures checks
 dnl ---------------------------------------------------------------------------
 
-if test "$wxUSE_MAC" = 1; then
+dnl Note that some checks here are OS-specific, and need to be done for any
+dnl port, while others are wxOSX-specific and are performed only for it inside
+dnl another test below.
+if test "$USE_DARWIN" = 1; then
 
 retest_macosx_linking=no
 
@@ -1139,7 +1186,7 @@ if test "x$wxUSE_UNIVERSAL_BINARY" != xno ; then
     if test "x$wxUSE_UNIVERSAL_BINARY" != xyes; then
         OSX_ARCH_OPTS=$wxUSE_UNIVERSAL_BINARY
     else dnl Use all architectures supported
-        OSX_ARCH_OPTS="ppc,i386"
+        OSX_ARCH_OPTS="i386"
         if test "$wxUSE_OSX_COCOA" = 1; then
             OSX_ARCH_OPTS="$OSX_ARCH_OPTS,x86_64"
         fi
@@ -1174,12 +1221,14 @@ if test "x$OSX_ARCH_OPTS" != "x"; then
         AC_MSG_WARN([Disabling dependency tracking due to universal binary build.])
         disable_macosx_deps=yes
 
-        dnl HACK: PCH could be made to work by precompiling for each architecture into separate directories
-        dnl and including all architecture directories with each compiler invocation.
-        dnl That would require a major rework of Bakefile and at the same time it would be nice to have
-        dnl Objective-C++ precompiled headers.
-        AC_MSG_WARN([Disabling precompiled headers due to universal binary build.])
-        bk_use_pch=no
+        if test "x$wxUSE_PCH" = "xyes"; then
+            dnl HACK: PCH could be made to work by precompiling for each architecture into separate directories
+            dnl and including all architecture directories with each compiler invocation.
+            dnl That would require a major rework of Bakefile and at the same time it would be nice to have
+            dnl Objective-C++ precompiled headers.
+            AC_MSG_WARN([Disabling precompiled headers due to universal binary build.])
+            wxUSE_PCH=no
+        fi
     fi
 
     OSX_ARCH_OPTS=`echo $OSX_ARCH_OPTS | sed -e 's/^/-arch /' -e 's/,/ -arch /g'`
@@ -1191,14 +1240,16 @@ if test "x$OSX_ARCH_OPTS" != "x"; then
     LDFLAGS="$OSX_ARCH_OPTS $LDFLAGS"
 fi
 
+if test "$wxUSE_MAC" = 1; then
+
 dnl Set up the Mac OS X SDK.  We do this early so configure tests will occur
 dnl with the SDK in place.
 dnl NOTE: We clobber wxUSE_MACOSX_SDK with the SDK path
 if test "x$wxUSE_MACOSX_SDK" = "xno"; then
     wxUSE_MACOSX_SDK=
 elif test "x$wxUSE_MACOSX_SDK" = "xyes"; then
-    # TODO: Search for most recent SDK and use it.
-    wxUSE_MACOSX_SDK="/Developer/SDKs/MacOSX10.4u.sdk"
+    dnl Try to use the default SDK.
+    wxUSE_MACOSX_SDK="`xcode-select -p`/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 fi
 
 
@@ -1217,6 +1268,8 @@ if test "x$wxUSE_MACOSX_SDK" != "x"; then
     dnl if we ever did, be aware that you don't need to worry about it.
 fi
 
+fi dnl wxUSE_MAC
+
 dnl Set up the deployment target
 dnl No   : Don't specify a min version even if using an SDK
 dnl Yes  : Use the version from the SDK if used, otherwise same as no
@@ -1231,7 +1284,7 @@ dnl We need to quote the next line where we don't need macros and do need [] in 
         MACOSX_SDK_PLIST_VERSION_MIN=`defaults read "$wxUSE_MACOSX_SDK/SDKSettings" buildSettings | grep '^ *"\{0,1\}MACOSX_DEPLOYMENT_TARGET"\{0,1\} *= *"\{0,1\}[^"]*"\{0,1\}; *$' | sed 's/^ *"\{0,1\}MACOSX_DEPLOYMENT_TARGET"\{0,1\} *= *"\{0,1\}\([^"]*\)"\{0,1\} *; *$/\1/'`
 ]
         # If that failed, try again with the new key
-        if test "x$MACOSX_SDK_PLIST_VERSION_MIN" == "x"; then
+        if test "x$MACOSX_SDK_PLIST_VERSION_MIN" = "x"; then
 [
             MACOSX_SDK_PLIST_VERSION_MIN=`defaults read "$wxUSE_MACOSX_SDK/SDKSettings" DefaultProperties | grep '^ *"\{0,1\}MACOSX_DEPLOYMENT_TARGET"\{0,1\} *= *"\{0,1\}[^"]*"\{0,1\}; *$' | sed 's/^ *"\{0,1\}MACOSX_DEPLOYMENT_TARGET"\{0,1\} *= *"\{0,1\}\([^"]*\)"\{0,1\} *; *$/\1/'`
 ]
@@ -1248,10 +1301,11 @@ dnl We need to quote the next line where we don't need macros and do need [] in 
         wxUSE_MACOSX_VERSION_MIN=
     fi
 elif test "x$wxUSE_MACOSX_VERSION_MIN" = "x"; then
-    wxUSE_MACOSX_VERSION_MIN=10.7
+    wxUSE_MACOSX_VERSION_MIN=10.9
 fi
 
 if test "x$MACOSX_SDK_OPTS" != "x"; then
+    eval "CPP=\"$CPP $MACOSX_SDK_OPTS\""
     eval "CC=\"$CC $MACOSX_SDK_OPTS\""
     eval "CXX=\"$CXX $MACOSX_SDK_OPTS\""
     eval "LD=\"$LD $MACOSX_SDK_OPTS\""
@@ -1264,6 +1318,7 @@ if test "x$wxUSE_MACOSX_VERSION_MIN" != "x"; then
     else
         MACOSX_VERSION_MIN_OPTS="-mmacosx-version-min=$wxUSE_MACOSX_VERSION_MIN"
     fi
+    eval "CPP=\"$CPP $MACOSX_VERSION_MIN_OPTS\""
     eval "CC=\"$CC $MACOSX_VERSION_MIN_OPTS\""
     eval "CXX=\"$CXX $MACOSX_VERSION_MIN_OPTS\""
     eval "LD=\"$LD $MACOSX_VERSION_MIN_OPTS\""
@@ -1294,7 +1349,7 @@ if test "x$retest_macosx_linking" = "xyes"; then
     AC_LANG_POP()
 fi
 
-fi dnl wxUSE_MAC
+fi dnl USE_DARWIN
 
 case "${host}" in
 
@@ -1448,6 +1503,10 @@ if test "$USE_UNIX" = 1 ; then
     AC_DEFINE(__UNIX__)
 fi
 
+dnl Values of these variables shouldn't change any longer from now on, we
+dnl export them to ensure they're picked up by sub-configure scripts.
+export CC CFLAGS CPP CPPFLAGS CXX CXXFLAGS LDD LDFLAGS OBJCFLAGS OBJCXXFLAGS
+
 dnl ------------------------------------------------------------------------
 dnl Check for headers
 dnl ------------------------------------------------------------------------
@@ -1528,7 +1587,6 @@ AC_CHECK_SIZEOF(wchar_t, 0,
 if test "$ac_cv_sizeof_wchar_t" = 0; then
     AC_MSG_ERROR([wxWidgets requires wchar_t support.])
 fi
-AC_DEFINE(wxUSE_WCHAR_T)
 
 dnl checks needed to define wxVaCopy
 AC_CACHE_CHECK([for va_copy],
@@ -1803,11 +1861,17 @@ if test "x$COMPAQCXX" = "xyes"; then
 fi
 
 dnl The checks below are for ancient compilers and are unnecessary when using
-dnl C++11.
-if test "$HAVE_CXX11" != "1" ; then
+dnl C++11, but we still need to define the symbols that would have been defined
+dnl by them if we did run them.
+if test "$HAVE_CXX11" = "1" ; then
 
-dnl check for iostream (as opposed to iostream.h) standard header
-WX_CPP_NEW_HEADERS(, AC_DEFINE(wxUSE_IOSTREAMH))
+AC_DEFINE(HAVE_STD_WSTRING)
+AC_DEFINE(HAVE_STD_STRING_COMPARE)
+AC_DEFINE(HAVE_STD_UNORDERED_MAP)
+AC_DEFINE(HAVE_STD_UNORDERED_SET)
+AC_DEFINE(HAVE_TYPE_TRAITS)
+
+else dnl Not using C++11, so we do need to run the checks.
 
 dnl the next few tests are all for C++ features and so need to be done using
 dnl C++ compiler
@@ -2523,33 +2587,98 @@ if test "$wxUSE_LIBJPEG" != "no" ; then
 fi
 
 dnl ------------------------------------------------------------------------
+dnl Check for lzma library
+dnl ------------------------------------------------------------------------
+
+if test "$wxUSE_LIBLZMA" != "no"; then
+    dnl We shouldn't depend on the external liblzma if system libraries are
+    dnl explicitly disabled.
+    if test "$wxUSE_SYS_LIBS" != "no"; then
+        AC_CHECK_HEADER(lzma.h,,,[])
+
+        if test "$ac_cv_header_lzma_h" = "yes"; then
+            AC_CHECK_LIB(lzma, lzma_code,
+                [
+                    LZMA_LINK="-llzma"
+                    LIBS="$LZMA_LINK $LIBS"
+                    AC_DEFINE(wxUSE_LIBLZMA)
+                ])
+        fi
+    fi
+
+    if test -z "$LZMA_LINK"; then
+        wxUSE_LIBLZMA=no
+    fi
+fi
+
+dnl Disable the use of lzma, webp and zstd in built-in libtiff explicitly, as
+dnl otherwise we'd depend on the system libraries, which is typically
+dnl undesirable when using builtin libraries. If we use lzma ourselves, keep it
+dnl enabled.
+if test "$wxUSE_LIBTIFF" = "builtin"; then
+    ac_configure_args="$ac_configure_args --disable-webp --disable-zstd"
+    if test "$wxUSE_LIBLZMA" = "no"; then
+        ac_configure_args="$ac_configure_args --disable-lzma"
+    fi
+fi
+
+dnl ------------------------------------------------------------------------
+dnl Check for jbig library
+dnl ------------------------------------------------------------------------
+
+JBIG_LINK=
+if test "$wxUSE_LIBJBIG" = "yes"; then
+    AC_CHECK_LIB(jbig, jbg_dec_init, JBIG_LINK=" -ljbig")
+else
+    ac_configure_args="$ac_configure_args --disable-jbig"
+fi
+
+dnl ------------------------------------------------------------------------
 dnl Check for tiff library
 dnl ------------------------------------------------------------------------
 
 TIFF_LINK=
-TIFF_PREREQ_LINKS=-lm
 if test "$wxUSE_LIBTIFF" != "no" ; then
     AC_DEFINE(wxUSE_LIBTIFF)
 
     if test "$wxUSE_LIBTIFF" = "sys" -o "$wxUSE_LIBTIFF" = "yes" ; then
-        dnl libtiff may depend on libjpeg and libz so use them in the test
-        dnl below or it would fail
-        if test "$wxUSE_LIBJPEG" = "sys"; then
-            TIFF_PREREQ_LINKS="$TIFF_PREREQ_LINKS $JPEG_LINK"
-        fi
-        if test "$wxUSE_ZLIB" = "sys"; then
-            TIFF_PREREQ_LINKS="$TIFF_PREREQ_LINKS $ZLIB_LINK"
-        fi
-        AC_CHECK_HEADER(tiffio.h,
-                        [
-                            AC_CHECK_LIB(tiff, TIFFError,
-                                         TIFF_LINK=" -ltiff",
-                                         ,
-                                         $TIFF_PREREQ_LINKS)
-                        ],
-                        [],
-                        [ ]
-                       )
+        dnl First try using pkg-config as it's the most reliable way to detect
+        dnl libtiff.
+        PKG_CHECK_MODULES(LIBTIFF, [libtiff-4],
+            [
+                TIFF_LINK=$LIBTIFF_LIBS
+                CFLAGS="$LIBTIFF_CFLAGS $CFLAGS"
+            ],
+            [
+                AC_MSG_RESULT([not found via pkg-config])
+
+                TIFF_PREREQ_LINKS=-lm
+
+                dnl libtiff may depend on libjpeg and libz so use them in the test
+                dnl below or it would fail
+                if test "$wxUSE_LIBJPEG" = "sys"; then
+                    TIFF_PREREQ_LINKS="$TIFF_PREREQ_LINKS $JPEG_LINK"
+                fi
+                if test "$wxUSE_ZLIB" = "sys"; then
+                    TIFF_PREREQ_LINKS="$TIFF_PREREQ_LINKS $ZLIB_LINK"
+                fi
+                if test -n "$LZMA_LINK"; then
+                    TIFF_PREREQ_LINKS="$TIFF_PREREQ_LINKS $LZMA_LINK"
+                fi
+                if test "$wxUSE_LIBJBIG" = "yes"; then
+                    TIFF_PREREQ_LINKS="$TIFF_PREREQ_LINKS $JBIG_LINK"
+                fi
+                AC_CHECK_HEADER(tiffio.h,
+                                [
+                                    AC_CHECK_LIB(tiff, TIFFError,
+                                                 TIFF_LINK=" -ltiff",
+                                                 ,
+                                                 $TIFF_PREREQ_LINKS)
+                                ],
+                                [],
+                                [ ]
+                               )
+            ])
 
         if test "x$TIFF_LINK" = "x" ; then
             if test "$wxUSE_LIBTIFF" = "sys" ; then
@@ -2573,24 +2702,6 @@ if test "$wxUSE_LIBTIFF" != "no" ; then
             dnl we need to hack around this
             ac_configure_args="$ac_configure_args --disable-jpeg"
         fi
-
-        if test "$wxUSE_LIBLZMA" = "yes"; then
-            dnl If libtiff configure detects lzma library, it enables support for
-            dnl LZMA compression and using it requires linking with liblzma.
-            AC_CHECK_LIB(lzma, lzma_code, [LIBS="$LIBS -llzma"])
-        else
-            dnl Prevent libtiff configure from looking for liblzma if it's
-            dnl explicitly disabled.
-            ac_configure_args="$ac_configure_args --disable-lzma"
-        fi
-
-        dnl Similarly for jbig
-        if test "$wxUSE_LIBJBIG" = "yes"; then
-            AC_CHECK_LIB(jbig, jbg_dec_init, [LIBS="$LIBS -ljbig"])
-        else
-            ac_configure_args="$ac_configure_args --disable-jbig"
-        fi
-
         AC_CONFIG_SUBDIRS([src/tiff])
     fi
 fi
@@ -2636,8 +2747,19 @@ if test "$wxUSE_EXPAT" != "no"; then
         fi
     fi
     if test "$wxUSE_EXPAT" = "builtin" ; then
+        dnl Expat requires C99 compiler, so define wxCFLAGS_C99 variable which
+        dnl is used when compiling it in our makefiles.
+        save_CC="$CC"
+        AC_PROG_CC_C99
+        CC="$save_CC"
+
+        dnl Note that we need just the flags, not the full CC value including
+        dnl the compiler too.
+        wxCFLAGS_C99=$ac_cv_prog_cc_c99
+        AC_SUBST(wxCFLAGS_C99)
+
         dnl Expat needs this:
-        AC_CONFIG_SUBDIRS([src/expat])
+        AC_CONFIG_SUBDIRS([src/expat/expat])
     fi
 fi
 
@@ -2680,9 +2802,9 @@ if test "$USE_WIN32" = 1 ; then
     ],
     [ ])
 
-    LIBS="$LIBS -lwinspool -lwinmm -lshell32 -lshlwapi -lcomctl32 -lcomdlg32 -ladvapi32 -lversion -lwsock32 -lgdi32"
+    LIBS="$LIBS -luxtheme -lwinspool -lwinmm -lshell32 -lshlwapi -lcomctl32 -lcomdlg32 -ladvapi32 -lversion -lwsock32 -lgdi32"
     case "${host}" in
-        x86_64-*-mingw32* )
+        x86_64-*-mingw* )
             dnl we need to define this to embed the manifest for correct
             dnl platform from wx/msw/wx.rc (this is not needed for x86 which is
             dnl the default in wx/msw/rcdefs.h)
@@ -2712,6 +2834,7 @@ if test "$wxUSE_GUI" = "yes"; then
     WXGTK127=
     WXGTK2=
     WXGTK3=
+    WXGTK4=
     WXGPE=
 
     if test "$wxUSE_MSW" = 1 ; then
@@ -2720,7 +2843,7 @@ if test "$wxUSE_GUI" = "yes"; then
 
         dnl -mwindows causes a heap of other default gui libs to be linked in.
         case "${host}" in
-            *-*-mingw32* )
+            *-*-mingw* )
                 WXCONFIG_LDFLAGS_GUI="$LDFLAGS -Wl,--subsystem,windows -mwindows"
         esac
     fi
@@ -2762,12 +2885,14 @@ if test "$wxUSE_GUI" = "yes"; then
                             fi
                     esac
 
-                    if test "$wxGTK_VERSION" != 3; then
+                    if test "$wxGTK_VERSION" != 4 -a "$wxGTK_VERSION" != 3; then
                         AM_PATH_GTK_2_0(2.6.0, wx_cv_lib_gtk=2.0, , $GTK_MODULES)
                     fi
                     if test -z "$wx_cv_lib_gtk"; then
                         if test "$wxGTK_VERSION" = 3 -o "$wxGTK_VERSION" = any; then
                             AM_PATH_GTK_3_0(, wx_cv_lib_gtk=3, , $GTK_MODULES)
+                        elif test "$wxGTK_VERSION" = 4 -o "$wxGTK_VERSION" = any; then
+                            AM_PATH_GTK_4_0(, wx_cv_lib_gtk=4, , $GTK_MODULES)
                         fi
                     fi
                 fi
@@ -2807,6 +2932,10 @@ if test "$wxUSE_GUI" = "yes"; then
         fi
 
         case "$wx_cv_lib_gtk" in
+            4)      WXGTK4=1
+                    WXGTK3=1
+                    TOOLKIT_VERSION=4
+                    ;;
             3)      WXGTK3=1
                     TOOLKIT_VERSION=3
                     ;;
@@ -3297,24 +3426,37 @@ libraries returned by 'pkg-config gtk+-2.0 --libs' or 'gtk-config
 
 
     if test "$wxUSE_QT" = 1; then
-        PKG_CHECK_MODULES(QT5,
+        TOOLKIT=QT
+        GUIDIST=QT_DIST
+        TOOLKIT_DIR="qt"
+
+        if test -n "$QT5_CUSTOM_DIR" ; then
+            dnl the name of the directory where the files for this toolkit live
+            TOOLKIT_INCLUDE="${TOOLKIT_INCLUDE} -I${QT5_CUSTOM_DIR}/include"
+            GUI_TK_LIBRARY="${GUI_TK_LIBRARY} -L${QT5_CUSTOM_DIR}/lib \
+                            -lQt5Core -lQt5Widgets -lQt5Gui -lQt5OpenGL -lQt5Test \
+                            -Wl,-rpath,${QT5_CUSTOM_DIR}/lib"
+
+        elif test -z "$PKG_CONFIG" ; then
+            AC_MSG_ERROR([specify QT5_CUSTOM_DIR or make sure pkg-config is available to search for Qt5 libraries])
+
+        else
+            PKG_CHECK_MODULES(QT5,
                           [Qt5Core Qt5Widgets Qt5Gui Qt5OpenGL Qt5Test],
-            [
-                TOOLKIT=QT
-                GUIDIST=QT_DIST
-                TOOLKIT_DIR="qt"
+                [
                 TOOLKIT_INCLUDE="${TOOLKIT_INCLUDE} ${QT5_CFLAGS}"
                 GUI_TK_LIBRARY="${GUI_TK_LIBRARY} ${QT5_LIBS}"
                 if `pkg-config --variable qt_config Qt5Core | grep "reduce_relocations" >/dev/null`; then
                     dnl build with position independent code if Qt needs it
                     SAMPLES_CXXFLAGS="-fPIC $SAMPLES_CXXFLAGS"
-                    WXCONFIG_CXXFLAGS="-fPIC $WXCONFIG_CXXFLAGS $TOOLKIT_INCLUDE"
+                    WXCONFIG_CXXFLAGS="-fPIC $WXCONFIG_CXXFLAGS"
                 fi
-            ],
-            [
-                AC_MSG_ERROR([Qt5 libraries are not available])
-            ]
-        )
+                ],
+                [
+                    AC_MSG_ERROR([Qt5 libraries are not available])
+                ]
+            )
+        fi
     fi
     dnl the name of the directory where the files for this toolkit live
     TOOLKIT_DIR=`echo ${TOOLKIT} | tr '[[A-Z]]' '[[a-z]]'`
@@ -3388,9 +3530,6 @@ if test "$wxUSE_DISPLAY" = "yes"; then
             AC_MSG_WARN([Xinerama not found; disabling wxDisplay])
             wxUSE_DISPLAY="no"
         fi
-    elif test "$wxUSE_MSW" = 1; then
-        dnl DirectDraw for MSW - optionally used by WxDisplay.
-        AC_CHECK_HEADER([ddraw.h], [], [], [#include <windows.h>])
     fi
 fi
 
@@ -3635,7 +3774,7 @@ EOF
         HEADER_PAD_OPTION="-headerpad_max_install_names"
       ;;
 
-      *-*-cygwin* | *-*-mingw32* )
+      *-*-cygwin* | *-*-mingw32* | *-*-mingw64* )
         ;;
 
       *-*-hpux* )
@@ -4109,9 +4248,17 @@ fi
 
 dnl at least under IRIX with mipsPro the C99 round() function is available when
 dnl building using the C compiler but not when using C++ one
+AC_CACHE_CHECK([for round], wx_cv_func_round, [
 AC_LANG_PUSH(C++)
-WX_CHECK_FUNCS(round,,,[#include <math.h>])
+AC_TRY_LINK(
+    [#include <math.h>],
+    [return int(round(0.0))],
+    wx_cv_func_round=yes, wx_cv_func_round=no)
 AC_LANG_POP()
+])
+if test "$wx_cv_func_round" = yes; then
+    AC_DEFINE(HAVE_ROUND)
+fi
 
 dnl the following tests are for Unix(like) systems only
 if test "$TOOLKIT" != "MSW"; then
@@ -4406,7 +4553,7 @@ fi
 WX_CHECK_FUNCS(strtok_r, [], [], [#define _REENTRANT])
 
 dnl check for inet_addr and inet_aton (these may live either in libc, or in
-dnl libnsl or libresolv or libsocket)
+dnl libnsl or libresolv or libsocket or libnetwork under Haiku)
 INET_LINK=
 AC_CHECK_FUNCS(inet_addr,
     AC_DEFINE(HAVE_INET_ADDR),
@@ -4418,7 +4565,12 @@ AC_CHECK_FUNCS(inet_addr,
                     INET_LINK="resolv",
                     [
                         AC_CHECK_LIB(socket, inet_addr,
-                            INET_LINK="socket"
+                            INET_LINK="socket",
+                            [
+                                AC_CHECK_LIB(network, inet_addr,
+                                   INET_LINK="network"
+                                )
+                            ]
                         )
                     ]
                 )
@@ -4841,15 +4993,6 @@ if test "$TOOLKIT" != "MSW"; then
         fi
       fi
 
-      if test "$wxUSE_COMPILER_TLS" = "auto"; then
-          if test "$USE_NETBSD" = 1; then
-              AC_MSG_WARN([Disabling TLS under NetBSD, please contact wx-dev if it works now])
-              wxUSE_COMPILER_TLS=no
-          else
-              wxUSE_COMPILER_TLS=yes
-          fi
-      fi
-
       if test "$wxUSE_COMPILER_TLS" = "yes"; then
           dnl test for compiler thread-specific variables support
           AC_CACHE_CHECK([for __thread keyword],
@@ -4923,7 +5066,7 @@ dnl from if !MSW
 else
     if test "$wxUSE_THREADS" = "yes" ; then
       case "${host}" in
-        x86_64-*-mingw32* )
+        x86_64-*-mingw* )
         ;;
         *-*-mingw32* )
             dnl check if the compiler accepts -mthreads
@@ -4966,7 +5109,17 @@ dnl AC_CHECK_FUNC(getaddrinfo, AC_DEFINE(HAVE_GETADDRINFO), [
       AX_FUNC_WHICH_GETHOSTBYNAME_R
       if test "x$ac_cv_func_which_gethostbyname_r" = "xno" -o \
               "x$ac_cv_func_which_gethostbyname_r" = "xunknown" ; then
-          AC_CHECK_FUNC(gethostbyname, [ AC_DEFINE(HAVE_GETHOSTBYNAME) ])
+          AC_CHECK_FUNC(gethostbyname, [ AC_DEFINE(HAVE_GETHOSTBYNAME) ],
+              [
+                  dnl Under HaikuOS it is not yet detected
+                  case "${host}" in
+                  *-*-haiku* )
+                    AC_DEFINE(HAVE_GETHOSTBYNAME)
+                    AC_MSG_WARN([Defining HAVE_GETHOSTBYNAME unconditionally under ${host}.])
+                    ;;
+                  esac
+              ]
+           )
       fi
       dnl A similar test for getservbyname_r
       dnl I'm tempted to just not do this test which is taking much time and
@@ -4975,7 +5128,17 @@ dnl AC_CHECK_FUNC(getaddrinfo, AC_DEFINE(HAVE_GETADDRINFO), [
       AC_raf_FUNC_WHICH_GETSERVBYNAME_R
       if test "x$ac_cv_func_which_getservbyname_r" = "xno" -o \
               "x$ac_cv_func_which_getservbyname_r" = "xunknown" ; then
-          AC_CHECK_FUNCS(getservbyname,[ AC_DEFINE(HAVE_GETSERVBYNAME) ])
+          AC_CHECK_FUNCS(getservbyname,[ AC_DEFINE(HAVE_GETSERVBYNAME) ],
+              [
+                  dnl Under HaikuOS it is not yet detected
+                  case "${host}" in
+                  *-*-haiku* )
+                    AC_DEFINE(HAVE_GETSERVBYNAME)
+                    AC_MSG_WARN([Defining HAVE_GETSERVBYNAME unconditionally under ${host}.])
+                    ;;
+                  esac
+              ]
+           )
       fi
       dnl For gethostbyaddr_r, we currently do no separate test, instead, we
       dnl silently assume it's available exactly if gethostbyname_r is
@@ -5009,6 +5172,9 @@ else
   fi
 fi
 
+if test "$WXGTK4" = 1 ; then
+    AC_DEFINE_UNQUOTED(__WXGTK4__, 1)
+fi
 if test "$WXGTK3" = 1 ; then
     AC_DEFINE_UNQUOTED(__WXGTK3__, 1)
     WXGTK2=1
@@ -5339,7 +5505,10 @@ dnl ---------------------------------------------------------------------------
 if test "$wxUSE_SECRETSTORE" = "yes"; then
     dnl The required APIs are always available under MSW and OS X but we must
     dnl have GNOME libsecret under Unix to be able to compile this class.
-    if test "$wxUSE_MSW" != "1" -a "$wxUSE_OSX_COCOA" != 1; then
+    if test "$WXGTK1" = "1"; then
+        AC_MSG_WARN([libsecret is incompatible with GTK+ 1, disabled])
+        wxUSE_SECRETSTORE=no
+    elif test "$wxUSE_MSW" != "1" -a "$wxUSE_OSX_COCOA" != 1; then
         PKG_CHECK_MODULES(LIBSECRET, [libsecret-1],
             [
                 CXXFLAGS="$LIBSECRET_CFLAGS $CXXFLAGS"
@@ -5428,7 +5597,7 @@ fi
 
 WITH_PLUGIN_SDL=0
 if test "$wxUSE_SOUND" = "yes"; then
-  if test "$USE_UNIX" = 1 ; then
+  if test "$USE_UNIX" = 1 -a "$USE_MAC" != 1 ; then
     if test "$wxUSE_LIBSDL" != "no"; then
       PKG_CHECK_MODULES([SDL], [sdl2 >= 2.0.0],
                   [
@@ -5447,7 +5616,7 @@ if test "$wxUSE_SOUND" = "yes"; then
                                   AC_DEFINE(wxUSE_LIBSDL)
                                 ],
                                 [wxUSE_LIBSDL="no"])
-		  ])
+                  ])
       if test "$wxUSE_LIBSDL" = "yes" -a "$wxUSE_PLUGINS" = "yes" ; then
         WITH_PLUGIN_SDL=1
       fi
@@ -5465,7 +5634,7 @@ if test "$WXGTK2" = 1; then
 
         if test "$wxUSE_GTKPRINT" = "yes" ; then
             if test "$WXGTK3" = 1; then
-                gtk_unix_print="gtk+-unix-print-3.0"
+                gtk_unix_print="gtk+-unix-print-${TOOLKIT_VERSION}.0"
             else
                 gtk_unix_print="gtk+-unix-print-2.0 >= 2.10"
             fi
@@ -5722,15 +5891,18 @@ if test "$wxUSE_INTL" = "yes" ; then
 fi
 
 if test "$wxUSE_XLOCALE" = "yes" ; then
-    dnl even if xlocale.h exists, it may not contain all that
-    dnl wx needs. check if strtod_l() really is available.
-    AC_CACHE_CHECK([for complete xlocale],
-                   wx_cv_func_strtod_l,
+    dnl Some platforms (e.g. macOS) require an extra header, others (Linux)
+    dnl don't, but it's simpler to just check for it under all of them.
+    AC_CHECK_HEADERS([xlocale.h])
+
+    AC_CACHE_CHECK([for locale_t], wx_cv_type_locale_t,
     [
         AC_LANG_PUSH(C++)
         AC_TRY_COMPILE(
         [
+        #ifdef HAVE_XLOCALE_H
         #include <xlocale.h>
+        #endif
         #include <locale.h>
         #include <stdlib.h>
         ],
@@ -5738,14 +5910,20 @@ if test "$wxUSE_XLOCALE" = "yes" ; then
         locale_t t;
         strtod_l(NULL, NULL, t);
         ],
-        wx_cv_func_strtod_l=yes,
-        wx_cv_func_strtod_l=no
+        wx_cv_type_locale_t=yes,
+        wx_cv_type_locale_t=no
         )
         AC_LANG_POP()
     ])
 
-    if test "$wx_cv_func_strtod_l" = "yes" ; then
+    if test "$wx_cv_type_locale_t" = "yes" ; then
         AC_DEFINE(wxUSE_XLOCALE)
+
+        dnl We don't test (just) for locale_t existence, but we still define
+        dnl this symbol to avoid changing the existing code using it.
+        AC_DEFINE(HAVE_LOCALE_T)
+    else
+        AC_MSG_WARN([No locale_t support, wxXLocale won't be available])
     fi
 fi
 
@@ -5786,10 +5964,6 @@ fi
 
 if test "$wxUSE_PRINTF_POS_PARAMS" = "yes"; then
   AC_DEFINE(wxUSE_PRINTF_POS_PARAMS)
-fi
-
-if test "$wxUSE_OBJC_UNIQUIFYING" = "yes"; then
-  AC_DEFINE(wxUSE_OBJC_UNIQUIFYING)
 fi
 
 dnl ---------------------------------------------------------------------------
@@ -5995,8 +6169,16 @@ if test "$wxUSE_SOCKETS" = "yes"; then
                         INET_LINK="$INET_LINK -lsocket"
                     fi,
                     [
-                        AC_MSG_WARN([socket library not found - sockets will be disabled])
-                        wxUSE_SOCKETS=no
+                        dnl under Haiku, socket is in libnetwork
+                        AC_CHECK_LIB(network, socket,
+                            if test "$INET_LINK" != " -lnetwork"; then
+                                INET_LINK="$INET_LINK -lnetwork"
+                            fi,
+                            [
+                                AC_MSG_WARN([socket library not found - sockets will be disabled])
+                                wxUSE_SOCKETS=no
+                            ]
+                        )
                     ]
                 )
             ]
@@ -6347,43 +6529,30 @@ dnl ---------------------------------------------------------------------------
 dnl IPC: IPC, Drag'n'Drop, Clipboard, ...
 dnl ---------------------------------------------------------------------------
 
-dnl check for ole headers and disable a few features requiring it if not
-dnl present (earlier versions of mingw32 don't have ole2.h)
-if test "$USE_WIN32" = 1 -a \( "$wxUSE_DATAOBJ"       = "yes" \
-                          -o "$wxUSE_CLIPBOARD"     = "yes" \
-                          -o "$wxUSE_OLE"     = "yes" \
-                          -o "$wxUSE_DRAG_AND_DROP" = "yes" \) ; then
-    AC_CHECK_HEADER(ole2.h,,, [ ])
+if test "$USE_WIN32" = 1 ; then
+    if test "$wxUSE_OLE" = "yes" ; then
+        LIBS="-lrpcrt4 -loleaut32 -lole32 -luuid $LIBS"
 
-    if test "$ac_cv_header_ole2_h" = "yes" ; then
-        if test "$GCC" = yes ; then
-            AC_MSG_CHECKING([if g++ requires -fvtable-thunks])
-            AC_TRY_COMPILE([#include <windows.h>
-                            #include <ole2.h>],
-                           [],
-                           [AC_MSG_RESULT(no)],
-                           [AC_MSG_RESULT(yes)
-                            WXCONFIG_CXXFLAGS="$WXCONFIG_CXXFLAGS -fvtable-thunks"])
-            LIBS="-lrpcrt4 -loleaut32 -lole32 -luuid $LIBS"
-            if test "$wxUSE_OLE" = "yes" ; then
-                AC_DEFINE(wxUSE_OLE)
-                AC_DEFINE(wxUSE_OLE_AUTOMATION)
-                AC_DEFINE(wxUSE_ACTIVEX)
-                SAMPLES_SUBDIRS="$SAMPLES_SUBDIRS oleauto"
-            fi
-        fi
-
-        dnl for OLE clipboard and dnd
-        if test "$wxUSE_DATAOBJ" = "yes" ; then
-            AC_DEFINE(wxUSE_DATAOBJ)
-        fi
+        AC_DEFINE(wxUSE_OLE)
+        AC_DEFINE(wxUSE_OLE_AUTOMATION)
+        AC_DEFINE(wxUSE_ACTIVEX)
+        SAMPLES_SUBDIRS="$SAMPLES_SUBDIRS oleauto"
     else
-        AC_MSG_WARN([Some features disabled because OLE headers not found])
-
+        dnl Turn off features depending on OLE directly...
         wxUSE_CLIPBOARD=no
         wxUSE_DRAG_AND_DROP=no
         wxUSE_DATAOBJ=no
-        wxUSE_OLE=no
+
+        dnl ... or indirectly (via wxUSE_ACTIVEX)
+        if test "$wxUSE_MEDIACTRL" = "yes"; then
+            AC_MSG_WARN(wxMediaCtrl requires wxUSE_OLE... disabled)
+            wxUSE_MEDIACTRL=no
+        fi
+
+        if test "$wxUSE_WEBVIEW" = "yes"; then
+            AC_MSG_WARN(wxWebView requires wxUSE_OLE... disabled)
+            wxUSE_WEBVIEW=no
+        fi
     fi
 fi
 
@@ -6478,6 +6647,9 @@ if test "$wxUSE_UIACTIONSIMULATOR" = "yes" ; then
             dnl he's doing if --without-xtest was explicitly specified.
             wxUSE_UIACTIONSIMULATOR=no
         fi
+    elif test "$wxUSE_DFB" = 1; then
+        AC_MSG_WARN([wxUIActionSimulator not yet supported under $TOOLKIT... disabled])
+        wxUSE_UIACTIONSIMULATOR=no
     fi
 
     if test "$wxUSE_UIACTIONSIMULATOR" = "yes" ; then
@@ -6663,6 +6835,10 @@ if test "$wxUSE_DATAVIEWCTRL" = "yes"; then
   AC_DEFINE(wxUSE_DATAVIEWCTRL)
   USES_CONTROLS=1
   SAMPLES_SUBDIRS="$SAMPLES_SUBDIRS dataview"
+
+  if test "$wxUSE_NATIVE_DATAVIEWCTRL" = "yes"; then
+    AC_DEFINE(wxUSE_NATIVE_DATAVIEWCTRL)
+  fi
 fi
 
 if test "$wxUSE_IMAGLIST" = "yes"; then
@@ -6841,7 +7017,7 @@ if test "$wxUSE_TOOLTIPS" = "yes"; then
         AC_MSG_WARN([wxTooltip not supported yet under Motif... disabled])
     else
         if test "$wxUSE_UNIVERSAL" = "yes"; then
-            AC_MSG_WARN([wxTooltip not supported yet in wxUniversal... disabled])
+            AC_MSG_WARN([wxTooltip not supported yet in $TOOLKIT... disabled])
         else
             AC_DEFINE(wxUSE_TOOLTIPS)
         fi
@@ -6884,6 +7060,24 @@ fi
 if test "$wxUSE_PREFERENCES_EDITOR" = "yes"; then
     AC_DEFINE(wxUSE_PREFERENCES_EDITOR)
     SAMPLES_SUBDIRS="$SAMPLES_SUBDIRS preferences"
+fi
+
+if test "$wxUSE_PRIVATE_FONTS" = "yes"; then
+    if test "$wxUSE_GTK" = 1; then
+        if test "$wxUSE_PRIVATE_FONTS" = "yes"; then
+            PKG_CHECK_MODULES(PRIVATE_FONTS, [fontconfig >= 2.8.0 pangoft2 >= 1.38.0],
+                              [
+                                AC_DEFINE(wxUSE_PRIVATE_FONTS)
+                                CXXFLAGS="$PRIVATE_FONTS_CFLAGS $CXXFLAGS"
+                                GUI_TK_LIBRARY="$GUI_TK_LIBRARY $PRIVATE_FONTS_LIBS"
+                              ],
+                              [AC_MSG_WARN([run-time font loading won't be supported by wxFont])])
+        fi
+    elif test "$wxUSE_MAC" = 1 -o "$wxUSE_MSW" = 1; then
+        dnl In these ports we don't need anything special.
+        AC_DEFINE(wxUSE_PRIVATE_FONTS)
+    fi
+    dnl And in the other ports wxUSE_PRIVATE_FONTS is not supported.
 fi
 
 if test "$wxUSE_DIALUP_MANAGER" = "yes"; then
@@ -6956,22 +7150,8 @@ if test "$wxUSE_HTML" = "yes"; then
 fi
 if test "$wxUSE_WEBKIT" = "yes"; then
     if test "$wxUSE_MAC" = 1 -a "$USE_DARWIN" = 1; then
-        old_CPPFLAGS="$CPPFLAGS"
-        CPPFLAGS="-x objective-c++ $CPPFLAGS"
-        AC_CHECK_HEADER([WebKit/HIWebView.h],
-                        [
-                           AC_DEFINE(wxUSE_WEBKIT)
-                           WEBKIT_LINK="-framework WebKit"
-                        ],
-                        [
-                           AC_MSG_WARN([WebKit headers not found; disabling wxWebKit])
-                           wxUSE_WEBKIT=no
-                        ],
-                        [
-                           #include <Carbon/Carbon.h>
-                           #include <WebKit/WebKit.h>
-                        ])
-        CPPFLAGS="$old_CPPFLAGS"
+        AC_DEFINE(wxUSE_WEBKIT)
+        WEBKIT_LINK="-framework WebKit"
     else
         wxUSE_WEBKIT=no
     fi
@@ -7097,7 +7277,7 @@ if test "$wxUSE_WEBVIEW" = "yes"; then
             if test "$USE_WEBVIEW_WEBKIT2" = 0; then
                 webkitgtk=webkit-1.0
                 if test "$WXGTK3" = 1; then
-                    webkitgtk=webkitgtk-3.0
+                    webkitgtk="webkitgtk-${TOOLKIT_VERSION}.0"
                 fi
                 PKG_CHECK_MODULES([WEBKIT],
                                   [$webkitgtk >= 1.3.1],
@@ -7111,23 +7291,9 @@ if test "$wxUSE_WEBVIEW" = "yes"; then
                                   ])
             fi
         elif test "$wxUSE_MAC" = 1 -a "$USE_DARWIN" = 1; then
-            dnl Under Mac we always have the libraries but check for the
-            dnl headers
-            old_CPPFLAGS="$CPPFLAGS"
-            CPPFLAGS="-x objective-c++ $CPPFLAGS"
-            AC_CHECK_HEADER([WebKit/HIWebView.h],
-                            [
-                                USE_WEBVIEW_WEBKIT=1
-                                WEBKIT_LINK="-framework WebKit"
-                            ],
-                            [
-                                AC_MSG_WARN([WebKit headers not found])
-                            ],
-                            [
-                                #include <Carbon/Carbon.h>
-                                #include <WebKit/WebKit.h>
-                            ])
-            CPPFLAGS="$old_CPPFLAGS"
+            dnl Under Mac we always have the libraries
+            USE_WEBVIEW_WEBKIT=1
+            WEBKIT_LINK="-framework WebKit"
         fi
     fi
 
@@ -7358,6 +7524,42 @@ if test "$wxUSE_MAC" = 1; then
     wxUSE_GRAPHICS_CONTEXT="yes"
 fi
 
+dnl We need to check for Cairo if explicitly requested under MSW or Mac or if
+dnl we're going to use as the default wxGraphicsContext implementation with the
+dnl target toolkit.
+if test "$wx_needs_cairo_for_gc" = 1 -a "$wxUSE_GRAPHICS_CONTEXT" = "yes"; then
+    wx_needs_cairo=1
+fi
+
+if test "$wxUSE_CAIRO" = "yes" -o "$wx_needs_cairo" = 1; then
+    PKG_CHECK_MODULES(CAIRO, cairo,
+        [wx_has_cairo=1],
+        [AC_MSG_RESULT(no)]
+    )
+    if test "$wx_has_cairo" = 1; then
+        dnl Check that Cairo library is new enough: wxGraphicsContext
+        dnl won't compile without cairo_push_group() and
+        dnl cairo_pop_group_to_source() which are new in 1.2.
+        save_LIBS="$LIBS"
+        LIBS="$LIBS $CAIRO_LIBS"
+        AC_CHECK_FUNCS([cairo_push_group])
+        LIBS="$save_LIBS"
+        if test "$ac_cv_func_cairo_push_group" = "no"; then
+            wx_has_cairo=0
+            AC_MSG_WARN([Cairo library is too old and misses cairo_push_group()])
+        else
+            AC_DEFINE(wxUSE_CAIRO)
+
+            dnl We don't need to do this for wxGTK as we already get Cairo
+            dnl flags as part of GTK+ ones.
+            if test "$wxUSE_GTK" != 1; then
+                CPPFLAGS="$CAIRO_CFLAGS $CPPFLAGS"
+                GUI_TK_LIBRARY="$GUI_TK_LIBRARY $CAIRO_LIBS"
+            fi
+        fi
+    fi
+fi
+
 if test "$wxUSE_GRAPHICS_CONTEXT" = "yes"; then
     wx_has_graphics=0
     if test "$wxUSE_MSW" = 1; then
@@ -7381,33 +7583,10 @@ if test "$wxUSE_GRAPHICS_CONTEXT" = "yes"; then
         if test "$wx_cv_lib_gdiplus" = "yes"; then
             wx_has_graphics=1
         fi
-    elif test "$wxUSE_GTK" = 1 -o "$wxUSE_QT" = 1 -o "$wxUSE_X11" = 1; then
-        PKG_CHECK_MODULES(CAIRO, cairo,
-            [wx_has_graphics=1],
-            [AC_MSG_WARN([Cairo library not found])]
-        )
-        if test "$wx_has_graphics" = 1; then
-            dnl Check that Cairo library is new enough: wxGraphicsContext
-            dnl won't compile without cairo_push_group() and
-            dnl cairo_pop_group_to_source() which are new in 1.2.
-            save_LIBS="$LIBS"
-            LIBS="$LIBS $CAIRO_LIBS"
-            AC_CHECK_FUNCS([cairo_push_group])
-            LIBS="$save_LIBS"
-            if test "$ac_cv_func_cairo_push_group" = "no"; then
-                wx_has_graphics=0
-                AC_MSG_WARN([Cairo library is too old and misses cairo_push_group()])
-            else
-                AC_DEFINE(wxUSE_CAIRO)
-
-                dnl We don't need to do this for wxGTK as we already get Cairo
-                dnl flags as part of GTK+ ones.
-                if test "$wxUSE_GTK" != 1; then
-                    CPPFLAGS="$CAIRO_CFLAGS $CPPFLAGS"
-                    GUI_TK_LIBRARY="$GUI_TK_LIBRARY $CAIRO_LIBS"
-                fi
-            fi
-        fi
+    elif test "$WXGTK1" = "1"; then
+        AC_MSG_WARN([wxGraphicsContext not supported with GTK +1])
+    elif test "$wx_needs_cairo_for_gc" = 1; then
+        wx_has_graphics=$wx_has_cairo
     else
         dnl assume it's ok, add more checks here if needed
         wx_has_graphics=1
@@ -7667,7 +7846,7 @@ if test "$wxUSE_GUI" = "yes"; then
     dnl      library features they need are present)
 
     dnl TODO some samples are never built so far: mfc (requires VC++)
-    SAMPLES_SUBDIRS="$SAMPLES_SUBDIRS artprov dialogs drawing \
+    SAMPLES_SUBDIRS="$SAMPLES_SUBDIRS archive artprov dialogs drawing \
                      erase event exec font image minimal power render \
                      shaped svg taborder vscroll widgets wrapsizer"
 
@@ -7730,12 +7909,19 @@ elif test "$GXX" = yes ; then
     CXXWARNINGS="-Wall -Wundef -Wunused-parameter -Wno-ctor-dtor-privacy"
     AX_CXXFLAGS_GCC_OPTION(-Woverloaded-virtual, CXXWARNINGS)
 
+    dnl there are tons of warnings when building with GTK+ 1 which are never
+    dnl going to get fixed, so disable them to at least see new warnings/errors
+    dnl more clearly
+    if test "$WXGTK1" = "1"; then
+        CXXWARNINGS="$CXXWARNINGS -Wno-deprecated-declarations -Wno-narrowing -Wno-write-strings"
+    fi
+
     dnl when building using GTK+ 3 or Cocoa we currently get tons of deprecation
     dnl warnings from the standard headers -- disable them as we already know
     dnl that they're deprecated but we still have to use them to support older
     dnl toolkit versions and leaving this warning enabled prevents seeing any
     dnl other ones
-    if test "$WXGTK3" = 1 -o "$wxUSE_MAC" = 1 ; then
+    if test "$WXGTK4" != 1 -a \( "$WXGTK3" = 1 -o "$wxUSE_MAC" = 1 \) ; then
         CXXWARNINGS="$CXXWARNINGS -Wno-deprecated-declarations"
 
         dnl CXXWARNINGS is not used for Objective-C++ code compilation, but we
@@ -7778,7 +7964,7 @@ EXTRALIBS_HTML="$MSPACK_LINK"
 EXTRALIBS_MEDIA="$GST_LIBS"
 EXTRALIBS_STC="-lwxscintilla${WX_LIB_FLAVOUR}-${WX_RELEASE}${HOST_SUFFIX}"
 if test "$wxUSE_GUI" = "yes"; then
-    EXTRALIBS_GUI=`echo $GUI_TK_LIBRARY $PNG_LINK $JPEG_LINK $TIFF_LINK $WEBKIT_LINK`
+    EXTRALIBS_GUI=`echo $GUI_TK_LIBRARY $SDL_LIBS $PNG_LINK $JPEG_LINK $TIFF_LINK $LZMA_LINK $JBIG_LINK $WEBKIT_LINK`
 fi
 if test "$wxUSE_OPENGL" = "yes"; then
     EXTRALIBS_OPENGL="$LDFLAGS_GL $OPENGL_LIBS"
@@ -7788,25 +7974,68 @@ LDFLAGS="$LDFLAGS $PROFILE_FLAGS"
 
 WXCONFIG_LIBS="$LIBS"
 
-dnl wx-config must output builtin 3rd party libs in --libs in static build:
+dnl wx-config must output 3rd party libs in --libs in static build, so collect
+dnl them in wxconfig_3rdparty variable
+dnl
+dnl Notice that the libraries must be listed in correct order whenever there
+dnl are dependencies between them for linking to work when using static
+dnl libraries, e.g. jpeg, used by tiff, must come after it and zlib, used by
+dnl png, must come after it as well.
+if test "$wxUSE_GUI" = "yes"; then
+    case "$wxUSE_LIBTIFF" in
+        builtin)
+            wxconfig_3rdparty="tiff $wxconfig_3rdparty"
+            ;;
+        sys)
+            WXCONFIG_LIBS="$TIFF_LINK $LZMA_LINK $JBIG_LINK $WXCONFIG_LIBS"
+            ;;
+    esac
+    case "$wxUSE_LIBJPEG" in
+        builtin)
+            wxconfig_3rdparty="jpeg $wxconfig_3rdparty"
+            ;;
+        sys)
+            WXCONFIG_LIBS="$JPEG_LINK $WXCONFIG_LIBS"
+            ;;
+    esac
+    case "$wxUSE_LIBPNG" in
+        builtin)
+            wxconfig_3rdparty="png $wxconfig_3rdparty"
+            ;;
+        sys)
+            WXCONFIG_LIBS="$PNG_LINK $WXCONFIG_LIBS"
+            ;;
+    esac
+fi
 if test "$wxUSE_REGEX" = "builtin" ; then
     wxconfig_3rdparty="regex${lib_unicode_suffix} $wxconfig_3rdparty"
 fi
-if test "$wxUSE_EXPAT" = "builtin" ; then
-    wxconfig_3rdparty="expat $wxconfig_3rdparty"
+if test "$wxUSE_STC" = "yes" ; then
+    wxconfig_3rdparty="scintilla $wxconfig_3rdparty"
 fi
-if test "$wxUSE_LIBTIFF" = "builtin" ; then
-    wxconfig_3rdparty="tiff $wxconfig_3rdparty"
+case "$wxUSE_EXPAT" in
+    builtin)
+        wxconfig_3rdparty="expat $wxconfig_3rdparty"
+        ;;
+    sys)
+        WXCONFIG_LIBS="$EXPAT_LINK $WXCONFIG_LIBS"
+        ;;
+esac
+if test "$wxUSE_LIBLZMA" = "yes"; then
+    dnl It could be already present in WXCONFIG_LIBS as tiff dependency, avoid
+    dnl adding it again in this case:
+    if test "$wxUSE_GUI" != "yes" -o "$wxUSE_LIBTIFF" != "sys"; then
+        WXCONFIG_LIBS="$LZMA_LINK $WXCONFIG_LIBS"
+    fi
 fi
-if test "$wxUSE_LIBJPEG" = "builtin" ; then
-    wxconfig_3rdparty="jpeg $wxconfig_3rdparty"
-fi
-if test "$wxUSE_LIBPNG" = "builtin" ; then
-    wxconfig_3rdparty="png $wxconfig_3rdparty"
-fi
-if test "$wxUSE_ZLIB" = "builtin" ; then
-    wxconfig_3rdparty="zlib $wxconfig_3rdparty"
-fi
+case "$wxUSE_ZLIB" in
+    builtin)
+        wxconfig_3rdparty="zlib $wxconfig_3rdparty"
+        ;;
+    sys)
+        WXCONFIG_LIBS="$ZLIB_LINK $WXCONFIG_LIBS"
+        ;;
+esac
 
 for i in $wxconfig_3rdparty ; do
     WXCONFIG_LIBS="-lwx${i}${WX_LIB_FLAVOUR}-${WX_RELEASE}${HOST_SUFFIX} $WXCONFIG_LIBS"
@@ -7893,15 +8122,14 @@ AC_SUBST(SAMPLES_RPATH_FLAG)
 AC_SUBST(SAMPLES_CXXFLAGS)
 AC_SUBST(HEADER_PAD_OPTION)
 AC_SUBST(HOST_SUFFIX)
-AC_SUBST(CPPUNIT_CFLAGS)
-AC_SUBST(CPPUNIT_LIBS)
+AC_SUBST(USE_DPI_AWARE_MANIFEST)
 
 case "$TOOLKIT" in
     GTK)
         TOOLKIT_DESC="GTK+"
         if test "$WXGTK2" = 1; then
             if test "$WXGTK3" = 1; then
-                TOOLKIT_DESC="$TOOLKIT_DESC 3"
+                TOOLKIT_DESC="$TOOLKIT_DESC ${TOOLKIT_VERSION}"
             else
                 TOOLKIT_DESC="$TOOLKIT_DESC 2"
             fi
@@ -7930,55 +8158,18 @@ case "$TOOLKIT" in
         ;;
 esac
 
-if test "$wxUSE_WINE" = "yes"; then
-    BAKEFILE_FORCE_PLATFORM=win32
+dnl Override some bakefile defaults before including autoconf_inc.m4
+
+dnl Bakefile-generated makefiles use PCH by default, but we require explicitly
+dnl enabling it with --enable-pch as in many cases the speed gain from using it
+dnl is tiny, while the space penalty is enormous, and in some cases this can
+dnl even make PCH build slower than the build without PCH.
+if test "$wxUSE_PCH" != "yes"; then
+    bk_use_pch=no
 fi
 
-dnl gcc 3.4 has a pch bug which truncates wide character constants in headers.
-dnl Hopefully for a non-unicode build there aren't any wide constants in
-dnl headers, but for a unicode build it's best to disable pch.
-if test "$wxUSE_UNICODE" = yes -a "$GCC" = yes -a "$bk_use_pch" != no
-then
-    AC_CACHE_CHECK(
-        [for gcc precompiled header bug],
-        [wx_cv_gcc_pch_bug],
-        [[
-            echo '#include <stdio.h>
-                  const wchar_t test_var[] = L"awidetest";' > conftest.h
-
-            echo '#include "conftest.h"
-                  int main()
-                  {
-                     printf("%ls", test_var);
-                     return 0;
-                  }' > conftest.cpp
-
-            wx_cv_gcc_pch_bug="pch not supported"
-
-            if $CXX conftest.h >/dev/null 2>&1
-            then
-                wx_cv_gcc_pch_bug=
-
-                if $CXX -o conftest$PROGRAM_EXT conftest.cpp >/dev/null 2>&1
-                then
-                    if tr -dc '[a-z]' < conftest$PROGRAM_EXT |
-                        grep awidetest >/dev/null
-                    then
-                        wx_cv_gcc_pch_bug=no
-                    else
-                        wx_cv_gcc_pch_bug=yes
-                    fi
-                fi
-            fi
-
-            rm -f conftest.h conftest.gch conftest.cpp conftest$PROGRAM_EXT
-        ]])
-
-    if test "$wx_cv_gcc_pch_bug" = yes; then
-        dnl make the default for pch 'no'
-        dnl further below check whether the user overrode and warn them
-        bk_use_pch=no
-    fi
+if test "$wxUSE_WINE" = "yes"; then
+    BAKEFILE_FORCE_PLATFORM=win32
 fi
 
 AC_BAKEFILE([m4_include(autoconf_inc.m4)])
@@ -8004,46 +8195,13 @@ if test "$wxUSE_MSW" = 1 ; then
     RESCOMP="$WINDRES"
 fi
 
-if test "$wxUSE_MAC" = 1; then
-    dnl base name of the resource file for wxMac must be the same
-    dnl as library installation base name (-install_name)
-    WX_RESOURCES_MACOSX_ASCII="libwx_${TOOLCHAIN_NAME}.${wx_release_number}.r"
-    WX_RESOURCES_MACOSX_DATA="libwx_${TOOLCHAIN_NAME}.${wx_release_number}.rsrc"
-
-    dnl add the resources target for wxMac
-    LIBWXMACRES="\$(wx_top_builddir)/lib/${WX_RESOURCES_MACOSX_ASCII}"
-
-    AC_CHECK_PROG(DEREZ, DeRez, DeRez, /Developer/Tools/DeRez)
-
-    MACSETFILE="\$(SETFILE)"
-
-    dnl resources are bundled both with shared library and applications
-    dnl since the carb resource *must* be included in the application
-    POSTLINK_COMMAND="cat /dev/null | \$(REZ) -d __DARWIN__ -t APPL ${LIBWXMACRES}"
-    RESCOMP="cat /dev/null \| $REZ"
-    WXCONFIG_RESFLAGS="-d __DARWIN__ -t APPL \$libdir/$WX_RESOURCES_MACOSX_ASCII"
-
-else
-    dnl default value is to (silently) do nothing in the makefile
-    MACSETFILE="@true"
-    POSTLINK_COMMAND="@true"
-fi
-
 fi
 dnl wxUSE_GUI = 1
 
 
-dnl find out if the compiler supports PCH
-dnl
-dnl TODO: this should be in bakefile
+dnl Use gcc precompiled headers if supported.
 if test $GCC_PCH = 1
 then
-    if test "$wx_cv_gcc_pch_bug" = yes; then
-        AC_MSG_WARN([*** Precompiled header support is broken on this compiler])
-        AC_MSG_WARN([*** --enable-precomp-headers is not recommended])
-        AC_MSG_WARN([*** see http://gcc.gnu.org/bugzilla/show_bug.cgi?id=13361])
-    fi
-
     # Our WX_PRECOMP flag does not make sense for any language except C++ because
     # the headers that benefit from precompilation are mostly C++ headers.
     CXXFLAGS="-DWX_PRECOMP $CXXFLAGS"
@@ -8179,22 +8337,11 @@ AC_SUBST(OPENGL_LIBS)
 AC_SUBST(DMALLOC_LIBS)
 AC_SUBST(WX_VERSION_TAG)
 
-dnl additional resurces settings
-AC_SUBST(RESCOMP)
-AC_SUBST(WINDRES)
-AC_SUBST(REZ)
-AC_SUBST(WX_RESOURCES_MACOSX_ASCII)
-AC_SUBST(WX_RESOURCES_MACOSX_DATA)
-
-dnl additional for Mac OS X
-AC_SUBST(DEREZ)
-AC_SUBST(LIBWXMACRES)
-AC_SUBST(POSTLINK_COMMAND)
-AC_SUBST(MACSETFILE)
-
 dnl other tools
 AC_SUBST(GCC)
 AC_SUBST(DLLTOOL)
+AC_SUBST(RESCOMP)
+AC_SUBST(WINDRES)
 
 
 dnl MAKE_SET will be replaced with "MAKE=..." or nothing if make sets MAKE
@@ -8260,16 +8407,7 @@ else
     dnl there are no wxBase programs in demos
     SUBDIRS="samples utils"
 fi
-dnl Add tests to the list of subdirs if cppunit 1.8.0+ is detected
-AM_PATH_CPPUNIT(1.8.0,
-    [SUBDIRS="$SUBDIRS tests"],
-    [
-        PKG_CHECK_MODULES(CPPUNIT, [cppunit >= 1.8.0],
-            [SUBDIRS="$SUBDIRS tests"],
-            [AC_MSG_WARN([cppunit not found])]
-        )
-    ]
-)
+SUBDIRS="$SUBDIRS tests"
 
 for subdir in $SUBDIRS; do
     if test -d ${srcdir}/${subdir} ; then
@@ -8372,6 +8510,7 @@ echo "                                       tiff               ${wxUSE_LIBTIFF-
 if test "$wxUSE_X11" = 1 -o "$wxUSE_MOTIF" = 1; then
 echo "                                       xpm                ${wxUSE_LIBXPM-none}"
 fi
+echo "                                       lzma               ${wxUSE_LIBLZMA}"
 echo "                                       zlib               ${wxUSE_ZLIB}"
 echo "                                       expat              ${wxUSE_EXPAT}"
 echo "                                       libmspack          ${wxUSE_LIBMSPACK}"

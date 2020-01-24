@@ -10,8 +10,7 @@
     <include file="../build/bakefiles/common_samples.bkl"/>
 
     <template id="wx_test">
-        <cppflags>$(CPPUNIT_CFLAGS)</cppflags>
-        <ldflags>$(CPPUNIT_LIBS)</ldflags>
+        <include>$(TOP_SRCDIR)3rdparty/catch/include</include>
 
         <if cond="WX_DISABLE_PRECOMP_HEADERS=='0'">
             <if cond="FORMAT!='autoconf' and PLATFORM_WIN32=='1'">
@@ -85,13 +84,13 @@
             strings/crt.cpp
             strings/vsnprintf.cpp
             strings/hexconv.cpp
-            streams/bstream.cpp
             streams/datastreamtest.cpp
             streams/ffilestream.cpp
             streams/fileback.cpp
             streams/filestream.cpp
             streams/iostreams.cpp
             streams/largefile.cpp
+            streams/lzmastream.cpp
             streams/memstream.cpp
             streams/socketstream.cpp
             streams/sstream.cpp
@@ -183,7 +182,9 @@
             graphics/boundingbox.cpp
             graphics/clippingbox.cpp
             graphics/graphmatrix.cpp
+            graphics/graphpath.cpp
             config/config.cpp
+            controls/auitest.cpp
             controls/bitmapcomboboxtest.cpp
             controls/bitmaptogglebuttontest.cpp
             controls/bookctrlbasetest.cpp
@@ -222,6 +223,7 @@
             controls/slidertest.cpp
             controls/spinctrldbltest.cpp
             controls/spinctrltest.cpp
+            controls/styledtextctrltest.cpp
             controls/textctrltest.cpp
             controls/textentrytest.cpp
             controls/togglebuttontest.cpp
@@ -250,6 +252,7 @@
             image/rawbmp.cpp
             html/htmlparser.cpp
             html/htmlwindow.cpp
+            html/htmprint.cpp
             menu/accelentry.cpp
             menu/menu.cpp
             misc/guifuncs.cpp
@@ -263,11 +266,15 @@
                 applications.
              -->
             net/socket.cpp
+            persistence/tlw.cpp
+            persistence/dataview.cpp
+            rowheightcache/rowheightcachetest.cpp
             sizers/boxsizer.cpp
             sizers/gridsizer.cpp
             sizers/wrapsizer.cpp
             toplevel/toplevel.cpp
             validators/valnum.cpp
+            validators/valtext.cpp
             window/clientsize.cpp
             window/setsize.cpp
             xml/xrctest.cpp
@@ -276,14 +283,15 @@
             Can't use <wx-lib> here as it doesn't work with conditionally
             defined variables, so fall back <sys-lib> as we must not link with
             inexisting webview library to be able to run tests even if
-            wxWebView is not available.
+            wxWebView or wxSTC is not available.
          -->
         <sys-lib>$(WXLIB_WEBVIEW)</sys-lib>
+        <sys-lib>$(WXLIB_STC)</sys-lib>
+        <wx-lib>aui</wx-lib>
         <wx-lib>richtext</wx-lib>
         <wx-lib>media</wx-lib>
         <wx-lib>xrc</wx-lib>
         <wx-lib>xml</wx-lib>
-        <wx-lib>adv</wx-lib>
         <wx-lib>html</wx-lib>
         <wx-lib>core</wx-lib>
         <wx-lib>net</wx-lib>
@@ -293,9 +301,9 @@
 
     <wx-data id="data">
         <files>testdata.fc</files>
-        
+
         <!-- test data for image/image.cpp test unit: -->
-        <files>horse.ani  horse.bmp  horse.cur  horse.gif  horse.ico  horse.jpg  
+        <files>horse.ani  horse.bmp  horse.cur  horse.gif  horse.ico  horse.jpg
                horse.pcx  horse.png  horse.pnm  horse.tga  horse.tif  horse.xpm</files>
     </wx-data>
 

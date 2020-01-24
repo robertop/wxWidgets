@@ -33,6 +33,8 @@
     #include "wx/window.h"
 #endif
 
+#include "wx/stack.h"
+
 #include "wx/msw/private.h"
 
 // ----------------------------------------------------------------------------
@@ -277,9 +279,9 @@ wxPaintDCImpl::wxPaintDCImpl( wxDC *owner, wxWindow *window ) :
 #endif // wxHAS_PAINT_DEBUG
 
     // see comments in src/msw/window.cpp where this is defined
-    extern bool wxDidCreatePaintDC;
+    extern wxStack<bool> wxDidCreatePaintDC;
 
-    wxDidCreatePaintDC = true;
+    wxDidCreatePaintDC.top() = true;
 
 
     m_window = window;
@@ -302,7 +304,7 @@ wxPaintDCImpl::wxPaintDCImpl( wxDC *owner, wxWindow *window ) :
     InitDC();
 
     // the HDC can have a clipping box (which we didn't set), make sure our
-    // DoGetClippingBox() checks for it
+    // DoGetClippingRect() checks for it
     m_clipping = true;
 }
 

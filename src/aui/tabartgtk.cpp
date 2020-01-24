@@ -36,8 +36,6 @@
 #include "wx/gtk/dc.h"
 #include "wx/gtk/private.h"
 
-#include <gtk/gtk.h>
-
 #include "wx/aui/auibook.h"
 #include "wx/aui/tabartgtk.h"
 #include "wx/renderer.h"
@@ -310,9 +308,9 @@ void wxAuiGtkTabArt::DrawTab(wxDC& dc, wxWindow* wnd, const wxAuiNotebookPage& p
 
     wxCoord textX = tab_rect.x + padding + style_notebook->xthickness;
 
-    int bitmap_offset = 0;
     if (page.bitmap.IsOk())
     {
+        int bitmap_offset;
         bitmap_offset = textX;
 
         // draw bitmap

@@ -40,6 +40,7 @@
 
 #include "wx/msw/private.h"
 #include "wx/msw/winundef.h"
+#include "wx/msw/private/winstyle.h"
 
 #include "wx/imaglist.h"
 #include "wx/itemattr.h"
@@ -460,6 +461,7 @@ public:
                     if ( image != -1 )
                         break;
                     //else: fall through
+                    wxFALLTHROUGH;
 
                 case wxTreeItemIcon_Selected:
                 case wxTreeItemIcon_Expanded:
@@ -788,10 +790,50 @@ bool wxTreeCtrl::Create(wxWindow *parent,
     {
         // The Vista+ system theme uses rotating ("twist") buttons, so we map
         // this style to it.
-        EnableSystemTheme();
+        EnableSystemThemeByDefault();
     }
 
     return true;
+}
+
+bool wxTreeCtrl::IsDoubleBuffered() const
+{
+    if ( !GetHwnd() )
+        return false;
+
+    // Notice that TVM_GETEXTENDEDSTYLE is supported since XP, so we can always
+    // send this message, no need for comctl32.dll version check here.
+    const LRESULT
+        exTreeStyle = ::SendMessage(GetHwnd(), TVM_GETEXTENDEDSTYLE, 0, 0);
+
+    return (exTreeStyle & TVS_EX_DOUBLEBUFFER) != 0;
+}
+
+void wxTreeCtrl::SetDoubleBuffered(bool on)
+{
+    if ( !GetHwnd() )
+        return;
+
+    // TVS_EX_DOUBLEBUFFER is only supported since Vista, don't try to set it
+    // under XP, who knows what could this do.
+    if ( wxApp::GetComCtl32Version() >= 610 )
+    {
+        const HRESULT hr = ::SendMessage(GetHwnd(),
+                                         TVM_SETEXTENDEDSTYLE,
+                                         TVS_EX_DOUBLEBUFFER,
+                                         on ? TVS_EX_DOUBLEBUFFER : 0);
+        if ( hr == S_OK )
+        {
+            // There is no need to erase background for a double-buffered
+            // window, so disable it when enabling double buffering and restore
+            // the default background style value when disabling it.
+            SetBackgroundStyle(on ? wxBG_STYLE_PAINT : wxBG_STYLE_ERASE);
+        }
+        else
+        {
+            wxLogApiError("TreeView_SetExtendedStyle(TVS_EX_DOUBLEBUFFER)", hr);
+        }
+    }
 }
 
 wxTreeCtrl::~wxTreeCtrl()
@@ -1211,7 +1253,9 @@ void wxTreeCtrl::SetItemFont(const wxTreeItemId& item, const wxFont& font)
         attr = it->second;
     }
 
-    attr->SetFont(font);
+    wxFont f = font;
+    f.WXAdjustToPPI(GetDPI());
+    attr->SetFont(f);
 
     // Reset the item's text to ensure that the bounding rect will be adjusted
     // for the new font.
@@ -1682,6 +1726,7 @@ void wxTreeCtrl::DeleteAllItems()
     TreeItemUnlocker unlock_all;
 
     // invalidate all the items we store as they're going to become invalid
+    m_htEnsureVisibleOnThaw =
     m_htSelStart =
     m_htClickedItem = wxTreeItemId();
 
@@ -1954,6 +1999,16 @@ void wxTreeCtrl::EnsureVisible(const wxTreeItemId& item)
 {
     wxCHECK_RET( !IsHiddenRoot(item), wxT("can't show hidden root item") );
 
+    if ( IsFrozen() )
+    {
+        // We can't ensure that the item is visible if it involves scrolling
+        // while we're frozen, as we disable scrolling in this case. So just
+        // remember that item we were supposed to make visible and actually do
+        // it when the control is thawed.
+        m_htEnsureVisibleOnThaw = item;
+        return;
+    }
+
     // no error return
     (void)TreeView_EnsureVisible(GetHwnd(), HITEM(item));
 }
@@ -2215,6 +2270,17 @@ bool wxTreeCtrl::MSWCommand(WXUINT cmd, WXWORD id_)
 
     // command processed
     return true;
+}
+
+void wxTreeCtrl::MSWUpdateFontOnDPIChange(const wxSize& newDPI)
+{
+    wxTreeCtrlBase::MSWUpdateFontOnDPIChange(newDPI);
+
+    for ( wxMapTreeAttr::const_iterator it = m_attrs.begin(); it != m_attrs.end(); ++it )
+    {
+        if ( it->second->HasFont() )
+            SetItemFont(it->first, it->second->GetFont());
+    }
 }
 
 bool wxTreeCtrl::MSWIsOnItem(unsigned flags) const
@@ -2965,8 +3031,8 @@ wxTreeCtrl::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
                     int cx = abs(m_ptClick.x - x);
                     int cy = abs(m_ptClick.y - y);
 
-                    if ( cx > ::GetSystemMetrics(SM_CXDRAG) ||
-                            cy > ::GetSystemMetrics(SM_CYDRAG) )
+                    if ( cx > wxGetSystemMetrics(SM_CXDRAG, this) ||
+                            cy > wxGetSystemMetrics(SM_CYDRAG, this) )
                     {
                         NM_TREEVIEW tv;
                         wxZeroMemory(tv);
@@ -3072,8 +3138,7 @@ wxTreeCtrl::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
                         processed = true;
                     }
                 }
-
-                // fall through
+                wxFALLTHROUGH;
 
             case WM_RBUTTONUP:
 #if wxUSE_DRAGIMAGE
@@ -3246,7 +3311,7 @@ bool wxTreeCtrl::MSWOnNotify(int idCtrl, WXLPARAM lParam, WXLPARAM *result)
     {
         case TVN_BEGINDRAG:
             eventType = wxEVT_TREE_BEGIN_DRAG;
-            // fall through
+            wxFALLTHROUGH;
 
         case TVN_BEGINRDRAG:
             {
@@ -3337,7 +3402,7 @@ bool wxTreeCtrl::MSWOnNotify(int idCtrl, WXLPARAM lParam, WXLPARAM *result)
 
         case TVN_GETDISPINFO:
             eventType = wxEVT_TREE_GET_INFO;
-            // fall through
+            wxFALLTHROUGH;
 
         case TVN_SETDISPINFO:
             {
@@ -3361,7 +3426,7 @@ bool wxTreeCtrl::MSWOnNotify(int idCtrl, WXLPARAM lParam, WXLPARAM *result)
                 {
                     default:
                         wxLogDebug(wxT("unexpected code %d in TVN_ITEMEXPAND message"), tv->action);
-                        // fall through
+                        wxFALLTHROUGH;
 
                     case TVE_EXPAND:
                         what = IDX_EXPAND;
@@ -3429,7 +3494,7 @@ bool wxTreeCtrl::MSWOnNotify(int idCtrl, WXLPARAM lParam, WXLPARAM *result)
             {
                 eventType = wxEVT_TREE_SEL_CHANGED;
             }
-            // fall through
+            wxFALLTHROUGH;
 
         case TVN_SELCHANGINGA:
         case TVN_SELCHANGINGW:
@@ -3648,7 +3713,7 @@ bool wxTreeCtrl::MSWOnNotify(int idCtrl, WXLPARAM lParam, WXLPARAM *result)
                     break;
                 }
             }
-            // fall through
+            wxFALLTHROUGH;
 
         default:
             return wxControl::MSWOnNotify(idCtrl, lParam, result);
@@ -3897,47 +3962,28 @@ void wxTreeCtrl::DoSetItemState(const wxTreeItemId& item, int state)
 // Update locking.
 // ----------------------------------------------------------------------------
 
-// Using WM_SETREDRAW with the native control is a bad idea as it's broken in
-// some Windows versions (see http://support.microsoft.com/kb/130611) and
-// doesn't seem to do anything in other ones (e.g. under Windows 7 the tree
-// control keeps updating its scrollbars while the items are added to it,
-// resulting in horrible flicker when adding even a couple of dozen items).
-// So we resize it to the smallest possible size instead of freezing -- this
-// still flickers, but actually not as badly as it would if we didn't do it.
-
 void wxTreeCtrl::DoFreeze()
 {
-    if ( IsShown() )
-    {
-        RECT rc;
-        ::GetWindowRect(GetHwnd(), &rc);
-        m_thawnSize = wxRectFromRECT(rc).GetSize();
+    wxTreeCtrlBase::DoFreeze();
 
-        ::SetWindowPos(GetHwnd(), 0, 0, 0, 1, 1,
-                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE);
-    }
+    // In addition to disabling redrawing, we also need to disable scrollbar
+    // updates that would still happen otherwise.
+    wxMSWWinStyleUpdater(GetHwnd()).TurnOn(TVS_NOSCROLL);
 }
 
 void wxTreeCtrl::DoThaw()
 {
-    if ( IsShown() )
+    // Undo temporary TVS_NOSCROLL addition.
+    wxMSWWinStyleUpdater(GetHwnd()).TurnOff(TVS_NOSCROLL);
+
+    wxTreeCtrlBase::DoThaw();
+
+    if ( !IsFrozen() && m_htEnsureVisibleOnThaw.IsOk() )
     {
-        if ( m_thawnSize != wxDefaultSize )
-        {
-            ::SetWindowPos(GetHwnd(), 0, 0, 0, m_thawnSize.x, m_thawnSize.y,
-                           SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-        }
+        // Really do the job of EnsureVisible() now that we can.
+        EnsureVisible(m_htEnsureVisibleOnThaw);
+        m_htEnsureVisibleOnThaw.Unset();
     }
-}
-
-// We also need to override DoSetSize() to ensure that m_thawnSize is reset if
-// the window is resized while being frozen -- in this case, we need to avoid
-// resizing it back to its original, pre-freeze, size when it's thawed.
-void wxTreeCtrl::DoSetSize(int x, int y, int width, int height, int sizeFlags)
-{
-    m_thawnSize = wxDefaultSize;
-
-    wxTreeCtrlBase::DoSetSize(x, y, width, height, sizeFlags);
 }
 
 #endif // wxUSE_TREECTRL

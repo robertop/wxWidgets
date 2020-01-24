@@ -28,6 +28,7 @@
 #endif
 
 #include "wx/msw/private.h"
+#include "wx/msw/private/winstyle.h"
 
 bool wxStaticText::Create(wxWindow *parent,
                           wxWindowID id,
@@ -155,25 +156,21 @@ void wxStaticText::SetLabel(const wxString& label)
         return;
 
 #ifdef SS_ENDELLIPSIS
-    long styleReal = ::GetWindowLong(GetHwnd(), GWL_STYLE);
+    wxMSWWinStyleUpdater updateStyle(GetHwnd());
     if ( HasFlag(wxST_ELLIPSIZE_END) )
     {
         // adding SS_ENDELLIPSIS or SS_ENDELLIPSIS "disables" the correct
         // newline handling in static texts: the newlines in the labels are
         // shown as square. Thus we don't use it even on newer OS when
         // the static label contains a newline.
-        if ( label.Contains(wxT('\n')) )
-            styleReal &= ~SS_ENDELLIPSIS;
-        else
-            styleReal |= SS_ENDELLIPSIS;
-
-        ::SetWindowLong(GetHwnd(), GWL_STYLE, styleReal);
+        updateStyle.TurnOnOrOff(!label.Contains(wxT('\n')), SS_ENDELLIPSIS);
     }
     else // style not supported natively
     {
-        styleReal &= ~SS_ENDELLIPSIS;
-        ::SetWindowLong(GetHwnd(), GWL_STYLE, styleReal);
+        updateStyle.TurnOff(SS_ENDELLIPSIS);
     }
+
+    updateStyle.Apply();
 #endif // SS_ENDELLIPSIS
 
     // save the label in m_labelOrig with both the markup (if any) and
@@ -181,18 +178,13 @@ void wxStaticText::SetLabel(const wxString& label)
     m_labelOrig = label;
 
 #ifdef SS_ENDELLIPSIS
-    if ( styleReal & SS_ENDELLIPSIS )
-        DoSetLabel(GetLabel());
+    if ( updateStyle.IsOn(SS_ENDELLIPSIS) )
+        WXSetVisibleLabel(GetLabel());
     else
 #endif // SS_ENDELLIPSIS
-        DoSetLabel(GetEllipsizedLabel());
+        WXSetVisibleLabel(GetEllipsizedLabel());
 
-    InvalidateBestSize();
-
-    if ( !IsEllipsized() )  // if ellipsize is ON, then we don't want to get resized!
-    {
-        AutoResizeIfNecessary();
-    }
+    AutoResizeIfNecessary();
 }
 
 bool wxStaticText::SetFont(const wxFont& font)
@@ -205,16 +197,18 @@ bool wxStaticText::SetFont(const wxFont& font)
     return true;
 }
 
-// for wxST_ELLIPSIZE_* support:
+// These functions are used by wxST_ELLIPSIZE_* supporting code in
+// wxStaticTextBase which requires us to implement them, but actually the base
+// wxWindow methods already do exactly what we need under this platform.
 
-wxString wxStaticText::DoGetLabel() const
+wxString wxStaticText::WXGetVisibleLabel() const
 {
-    return wxGetWindowText(GetHwnd());
+    return wxWindow::GetLabel();
 }
 
-void wxStaticText::DoSetLabel(const wxString& str)
+void wxStaticText::WXSetVisibleLabel(const wxString& str)
 {
-    SetWindowText(GetHwnd(), str.c_str());
+    wxWindow::SetLabel(str);
 }
 
 

@@ -60,6 +60,8 @@ public:
 
     virtual void GetSelection(long *from, long *to) const wxOVERRIDE;
 
+    virtual void Paste() wxOVERRIDE;
+
     virtual void Redo() wxOVERRIDE;
     virtual bool CanRedo() const wxOVERRIDE;
 
@@ -240,6 +242,11 @@ protected:
     virtual wxSize DoGetSizeFromTextSize(int xlen, int ylen = -1) const wxOVERRIDE;
 
 #if wxUSE_RICHEDIT
+    virtual void MSWUpdateFontOnDPIChange(const wxSize& newDPI) wxOVERRIDE;
+
+    // Apply m_richDPIscale zoom to rich control.
+    void MSWSetRichZoom();
+
     // Apply the character-related parts of wxTextAttr to the given selection
     // or the entire control if start == end == -1.
     //
@@ -261,6 +268,10 @@ protected:
     // (although not directly: 1 is for 1.0, 2 is for either 2.0 or 3.0 as we
     // can't nor really need to distinguish between them and 4 is for 4.1)
     int m_verRichEdit;
+
+    // Rich text controls need temporary scaling when they are created on a
+    // display with non-system DPI.
+    float m_richDPIscale;
 #endif // wxUSE_RICHEDIT
 
     // number of EN_UPDATE events sent by Windows when we change the controls
@@ -277,6 +288,10 @@ private:
     // the simple EDIT controls
     virtual WXHWND GetEditHWND() const wxOVERRIDE { return m_hWnd; }
 
+#if wxUSE_OLE
+    virtual void MSWProcessSpecialKey(wxKeyEvent& event) wxOVERRIDE;
+#endif // wxUSE_OLE
+
     void OnKeyDown(wxKeyEvent& event);
 
     // Used by EN_MAXTEXT handler to increase the size limit (will do nothing
@@ -286,8 +301,10 @@ private:
     // false if we hit the limit set by SetMaxLength() and so didn't change it.
     bool AdjustSpaceLimit();
 
-    wxDECLARE_EVENT_TABLE();
-    wxDECLARE_DYNAMIC_CLASS_NO_COPY(wxTextCtrl);
+    // Called before pasting to ensure that the limit is at big enough to allow
+    // pasting the entire text on the clipboard.
+    void AdjustMaxLengthBeforePaste();
+
 
     wxMenu* m_privateContextMenu;
 
@@ -297,6 +314,8 @@ private:
     int  m_isInkEdit;
 #endif
 
+    wxDECLARE_EVENT_TABLE();
+    wxDECLARE_DYNAMIC_CLASS_NO_COPY(wxTextCtrl);
 };
 
 #endif // _WX_TEXTCTRL_H_

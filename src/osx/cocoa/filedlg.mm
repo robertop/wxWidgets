@@ -340,6 +340,7 @@ void wxFileDialog::ShowWindowModal()
             modalForWindow: nativeParent modalDelegate: m_sheetDelegate
             didEndSelector: @selector(sheetDidEnd:returnCode:contextInfo:)
             contextInfo: nil];
+        [sPanel setShowsHiddenFiles: HasFlag(wxFD_SHOW_HIDDEN) ? YES : NO];
     }
     else 
     {
@@ -349,7 +350,7 @@ void wxFileDialog::ShowWindowModal()
 
         [oPanel setTreatsFilePackagesAsDirectories:NO];
         [oPanel setCanChooseDirectories:NO];
-        [oPanel setResolvesAliases:YES];
+        [oPanel setResolvesAliases:HasFlag(wxFD_NO_FOLLOW) ? NO : YES];
         [oPanel setCanChooseFiles:YES];
         [oPanel setMessage:cf.AsNSString()];
         [oPanel setAllowsMultipleSelection: (HasFlag(wxFD_MULTIPLE) ? YES : NO )];
@@ -360,6 +361,7 @@ void wxFileDialog::ShowWindowModal()
             modalDelegate: m_sheetDelegate
             didEndSelector: @selector(sheetDidEnd:returnCode:contextInfo:)
             contextInfo: nil];
+        [oPanel setShowsHiddenFiles: HasFlag(wxFD_SHOW_HIDDEN) ? YES : NO];
     }
 
     wxGCC_WARNING_RESTORE(deprecated-declarations)
@@ -390,7 +392,7 @@ wxWindow* wxFileDialog::CreateFilterPanel(wxWindow *extracontrol)
             if ( m_firstFileTypeFilter >= 0 )
                 m_filterChoice->SetSelection(m_firstFileTypeFilter);
         }
-        m_filterChoice->Connect(wxEVT_CHOICE, wxCommandEventHandler(wxFileDialog::OnFilterSelected), NULL, this);
+        m_filterChoice->Bind(wxEVT_CHOICE, &wxFileDialog::OnFilterSelected, this);
     }
         
     if(extracontrol)
@@ -494,7 +496,7 @@ int wxFileDialog::ShowModal()
     wxCFStringRef dir( m_dir );
     wxCFStringRef file( m_fileName );
 
-    m_path = wxEmptyString;
+    m_path.clear();
     m_fileNames.Clear();
     m_paths.Clear();
 
@@ -559,6 +561,8 @@ int wxFileDialog::ShowModal()
 
     wxGCC_WARNING_SUPPRESS(deprecated-declarations)
 
+    OSXBeginModalDialog();
+
     if ( HasFlag(wxFD_SAVE) )
     {
         NSSavePanel* sPanel = [NSSavePanel savePanel];
@@ -574,6 +578,7 @@ int wxFileDialog::ShowModal()
         [sPanel setCanSelectHiddenExtension:YES];
         [sPanel setAllowedFileTypes:types];
         [sPanel setAllowsOtherFileTypes:NO];
+        [sPanel setShowsHiddenFiles: HasFlag(wxFD_SHOW_HIDDEN) ? YES : NO];
 
         if ( HasFlag(wxFD_OVERWRITE_PROMPT) )
         {
@@ -603,10 +608,11 @@ int wxFileDialog::ShowModal()
                 
         [oPanel setTreatsFilePackagesAsDirectories:NO];
         [oPanel setCanChooseDirectories:NO];
-        [oPanel setResolvesAliases:YES];
+        [oPanel setResolvesAliases:HasFlag(wxFD_NO_FOLLOW) ? NO : YES];
         [oPanel setCanChooseFiles:YES];
         [oPanel setMessage:cf.AsNSString()];
         [oPanel setAllowsMultipleSelection: (HasFlag(wxFD_MULTIPLE) ? YES : NO )];
+        [oPanel setShowsHiddenFiles: HasFlag(wxFD_SHOW_HIDDEN) ? YES : NO];
 
         // Note that the test here is intentionally different from the one
         // above, in the wxFD_SAVE case: we need to call DoOnFilterSelected()
@@ -627,6 +633,9 @@ int wxFileDialog::ShowModal()
             
         ModalFinishedCallback(oPanel, returnCode);
     }
+    
+    OSXEndModalDialog();
+
 
     wxGCC_WARNING_RESTORE(deprecated-declarations)
 

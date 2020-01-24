@@ -188,6 +188,8 @@ void StringTestCase::Format()
         "4 world hello world 3",
         wxString::Format("%4$d %2$s %1$s %2$s %3$d", "hello", "world", 3, 4)
     );
+
+    CHECK( wxString::Format("%1$o %1$d %1$x", 20) == "24 20 14" );
 }
 
 void StringTestCase::FormatUnicode()
@@ -610,6 +612,8 @@ typedef wxLongLong_t TestValue_t;
 typedef long TestValue_t;
 #endif
 
+wxGCC_WARNING_SUPPRESS(missing-field-initializers)
+
 static const struct ToLongData
 {
     const wxChar *str;
@@ -664,6 +668,8 @@ static const struct ToLongData
     { wxT("0x11"),  0, Number_Invalid,  8 },
     { wxT("0x11"), 17, Number_Ok,      16 },
 };
+
+wxGCC_WARNING_RESTORE(missing-field-initializers)
 
 void StringTestCase::ToLong()
 {
@@ -847,9 +853,7 @@ void StringTestCase::FromDouble()
     } testData[] =
     {
         { 1.23,             -1, "1.23" },
-        // All MSVC versions until MSVC 14 used 3 digits for the exponent
-        // unnecessarily, account for this non-standard behaviour.
-#if defined(wxUSING_VC_CRT_IO) && !wxCHECK_VISUALC_VERSION(14)
+#if defined(wxDEFAULT_MANTISSA_SIZE_3)
         { -3e-10,           -1, "-3e-010" },
 #else
         { -3e-10,           -1, "-3e-10" },
@@ -1124,11 +1128,11 @@ void StringTestCase::ScopedBuffers()
     // but assigning it to wxCharBuffer makes a full copy
     wxCharBuffer buf(sbuf);
     CPPUNIT_ASSERT( buf.data() != literal );
-    CPPUNIT_ASSERT_EQUAL( literal, buf.data() );
+    CPPUNIT_ASSERT_EQUAL( std::string(literal), buf.data() );
 
     wxCharBuffer buf2 = sbuf;
     CPPUNIT_ASSERT( buf2.data() != literal );
-    CPPUNIT_ASSERT_EQUAL( literal, buf.data() );
+    CPPUNIT_ASSERT_EQUAL( std::string(literal), buf.data() );
 
     // Check that extending the buffer keeps it NUL-terminated.
     size_t len = 10;

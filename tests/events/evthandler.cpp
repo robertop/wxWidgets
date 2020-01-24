@@ -32,7 +32,7 @@ class MyEvent : public wxEvent
 public:
     MyEvent() : wxEvent(0, MyEventType) { }
 
-    virtual wxEvent *Clone() const { return new MyEvent; }
+    virtual wxEvent *Clone() const wxOVERRIDE { return new MyEvent; }
 };
 
 typedef void (wxEvtHandler::*MyEventFunction)(MyEvent&);
@@ -127,6 +127,11 @@ private:
     wxDECLARE_EVENT_TABLE();
 };
 
+// Avoid gcc warning about some of the functions defined by the expansion of
+// the event table macros being unused: they are indeed unused, but we still
+// want to have them to check that they compile.
+wxGCC_WARNING_SUPPRESS(unused-function)
+
 wxBEGIN_EVENT_TABLE(MyClassWithEventTable, wxEvtHandler)
     EVT_IDLE(MyClassWithEventTable::OnIdle)
 
@@ -137,6 +142,8 @@ wxBEGIN_EVENT_TABLE(MyClassWithEventTable, wxEvtHandler)
     //EVT_MYEVENT(MyClassWithEventTable::OnIdle)
     //EVT_IDLE(MyClassWithEventTable::OnAnotherEvent)
 wxEND_EVENT_TABLE()
+
+wxGCC_WARNING_RESTORE(unused-function)
 
 } // anonymous namespace
 
