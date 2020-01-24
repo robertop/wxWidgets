@@ -5,7 +5,9 @@ on: [push]
 jobs:
   build:
     env: 
-      wxCONFIGURE_FLAGS: --enable-utf8 --enable-utf8only --enable-monolithic
+      wxGTK_VERSION: 3
+      wxCONFIGURE_FLAGS: --enable-cxx11 --enable-stl --disable-webview
+      wxMAKEFILE_FLAGS: CXXFLAGS=-std=c++11
       wxUSE_XVFB: 1
     runs-on: ubuntu-16.04
     steps:
