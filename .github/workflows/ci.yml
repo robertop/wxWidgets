@@ -1,0 +1,152 @@
+name: C/C++ CI
+
+on: [push]
+
+jobs:
+  build_normal:
+    env:
+      wxUSE_XVFB: 1
+    runs-on: ubuntu-16.04
+    steps:  
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_utf8:
+    env:
+      wxCONFIGURE_FLAGS: "--enable-utf8 --enable-utf8only --enable-monolithic"
+      wxUSE_XVFB: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_cpp11:
+    env: 
+      wxGTK_VERSION: 3
+      wxCONFIGURE_FLAGS: --enable-cxx11 --enable-stl --disable-webview
+      wxMAKEFILE_FLAGS: CXXFLAGS=-std=c++11
+      wxUSE_XVFB: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_no_shared:
+    # TODO: need clang here
+    env:
+      wxCONFIGURE_FLAGS: "--disable-shared --disable-sys-libs --disable-webview"
+      wxUSE_XVFB: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_cmake:
+    env: 
+      wxTOOLSET: cmake
+      wxCMAKE_GENERATOR: "Unix Makefiles"
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_x11:
+    env: 
+      wxCONFIGURE_FLAGS: --with-x11 --enable-pch --disable-stc
+      wxSKIP_SAMPLES: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_directfb:
+    env: 
+      wxCONFIGURE_FLAGS: --with-directfb --enable-pch --disable-stc
+      wxSKIP_SAMPLES: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_motif:
+    env: 
+      wxCONFIGURE_FLAGS: --with-motif --enable-pch --disable-stc
+      wxSKIP_SAMPLES: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_qt:
+    env: 
+      wxCONFIGURE_FLAGS: --with-qt --enable-pch
+      wxSKIP_SAMPLES: 1
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_mac_cpp11:
+    env: 
+      wxCONFIGURE_FLAGS: "--enable-cxx11"
+      wxMAKEFILE_FLAGS: "CXXFLAGS=-std=c++11"
+      wxSKIP_SAMPLES: 1
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
+  build_mac_generator:
+    env: 
+      wxTOOLSET: cmake
+      wxCMAKE_GENERATOR: Xcode
+      wxCMAKE_DEFINES: -DCMAKE_CXX_STANDARD=11
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - name: before install
+      run: ./build/tools/before_install.sh
+    - name: build
+      run: bash build/tools/travis-ci.sh
