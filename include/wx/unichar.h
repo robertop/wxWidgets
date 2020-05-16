@@ -267,7 +267,7 @@ public:
     wxUniCharRef& operator=(const wxUniCharRef& c)
         { if (&c != this) *this = c.UniChar(); return *this; }
 
-#if __cplusplus >= 201103
+#ifdef wxHAS_MEMBER_DEFAULT
     wxUniCharRef(const wxUniCharRef&) = default;
 #endif
 

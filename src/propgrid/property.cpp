@@ -150,16 +150,28 @@ int wxPGCellRenderer::PreDrawCell( wxDC& dc, const wxRect& rect, const wxPGCell&
         dc.SetFont(font);
 
     const wxBitmap& bmp = cell.GetBitmap();
-    if ( bmp.IsOk() &&
-        // Do not draw oversized bitmap outside choice popup
-         ((flags & ChoicePopup) || bmp.GetHeight() < rect.height )
-        )
+    if ( bmp.IsOk() )
     {
-        dc.DrawBitmap( bmp,
+        int hMax = rect.height - wxPG_CUSTOM_IMAGE_SPACINGY;
+        wxBitmap scaledBmp;
+        int yOfs;
+        if ( bmp.GetHeight() <= hMax )
+        {
+            scaledBmp = bmp;
+            yOfs = (hMax - bmp.GetHeight()) / 2;
+        }
+        else
+        {
+            double scale = (double)hMax / bmp.GetHeight();
+            scaledBmp = wxPropertyGrid::RescaleBitmap(bmp, scale, scale);
+            yOfs = 0;
+        }
+
+        dc.DrawBitmap( scaledBmp,
                        rect.x + wxPG_CONTROL_MARGIN + wxCC_CUSTOM_IMAGE_MARGIN1,
-                       rect.y + wxPG_CUSTOM_IMAGE_SPACINGY,
+                       rect.y + wxPG_CUSTOM_IMAGE_SPACINGY + yOfs,
                        true );
-        imageWidth = bmp.GetWidth();
+        imageWidth = scaledBmp.GetWidth();
     }
 
     return imageWidth;
@@ -217,6 +229,10 @@ bool wxPGDefaultRenderer::Render( wxDC& dc, const wxRect& rect,
     wxPGCell cell;
 
     property->GetDisplayInfo(column, selItem, flags, &text, &cell);
+
+    // Property image takes precedence over cell image
+    if ( column == 1 && !isUnspecified && property->GetValueImage() )
+        cell.SetBitmap(wxNullBitmap);
 
     imageWidth = PreDrawCell( dc, rect, cell, preDrawFlags );
 
@@ -1301,7 +1317,20 @@ bool wxPGProperty::SetValueFromInt( long number, int argFlags )
 wxSize wxPGProperty::OnMeasureImage( int WXUNUSED(item) ) const
 {
     if ( m_valueBitmap )
-        return wxSize(m_valueBitmap->GetWidth(), wxDefaultCoord);
+    {
+        wxPropertyGrid* pg = GetGrid();
+        double scale = 1.0;
+        if ( pg )
+        {
+            int hMax = pg->GetImageSize().GetHeight();
+            if ( m_valueBitmap->GetHeight() > hMax )
+            {
+                scale = (double)hMax / m_valueBitmap->GetHeight();
+            }
+        }
+
+        return wxSize(wxRound(scale*m_valueBitmap->GetWidth()), wxDefaultCoord);
+    }
 
     return wxSize(0,0);
 }
@@ -1331,11 +1360,23 @@ void wxPGProperty::OnCustomPaint( wxDC& dc,
                                   const wxRect& rect,
                                   wxPGPaintData& )
 {
-    wxBitmap* bmp = m_valueBitmap;
+    wxCHECK_RET( m_valueBitmap && m_valueBitmap->IsOk(), wxS("invalid bitmap") );
 
-    wxCHECK_RET( bmp && bmp->IsOk(), wxS("invalid bitmap") );
+    wxBitmap scaledBmp;
+    int yOfs;
+    if ( m_valueBitmap->GetHeight() <= rect.height )
+    {
+        scaledBmp = *m_valueBitmap;
+        yOfs = (rect.height - m_valueBitmap->GetHeight()) / 2;
+    }
+    else
+    {
+        double scale = (double)rect.height / m_valueBitmap->GetHeight();
+        scaledBmp = wxPropertyGrid::RescaleBitmap(*m_valueBitmap, scale, scale);
+        yOfs = 0;
+    }
 
-    dc.DrawBitmap(*bmp,rect.x,rect.y);
+    dc.DrawBitmap(scaledBmp,rect.x, rect.y + yOfs);
 }
 
 const wxPGEditor* wxPGProperty::DoGetEditorClass() const
@@ -2050,19 +2091,30 @@ bool wxPGProperty::SetChoices( const wxPGChoices& choices )
     // Property must be de-selected first (otherwise choices in
     // the control would be de-synced with true choices)
     wxPropertyGrid* pg = GetGrid();
-    if ( pg && pg->GetSelection() == this )
+    bool isSelected = pg && pg->GetSelection() == this;
+    if ( isSelected )
+    {
         pg->ClearSelection();
+    }
 
     m_choices.Assign(choices);
-
+    if ( isSelected )
     {
-        // This may be needed to trigger some initialization
-        // (but don't do it if property is somewhat uninitialized)
-        wxVariant defVal = GetDefaultValue();
-        if ( defVal.IsNull() )
-            return false;
+        wxWindow* ctrl = pg->GetEditorControl();
+        if ( ctrl )
+            GetEditorClass()->SetItems(ctrl, m_choices.GetLabels());
+    }
 
+    // This may be needed to trigger some initialization
+    // (but don't do it if property is somewhat uninitialized)
+    wxVariant defVal = GetDefaultValue();
+    if ( !defVal.IsNull() )
         SetValue(defVal);
+
+    if ( isSelected )
+    {
+        // Recreate editor
+        pg->DoSelectProperty(this, wxPG_SEL_FORCE);
     }
 
     return true;
@@ -2071,16 +2123,8 @@ bool wxPGProperty::SetChoices( const wxPGChoices& choices )
 
 const wxPGEditor* wxPGProperty::GetEditorClass() const
 {
-    const wxPGEditor* editor;
+    const wxPGEditor* editor = m_customEditor ? m_customEditor : DoGetEditorClass();
 
-    if ( !m_customEditor )
-    {
-        editor = DoGetEditorClass();
-    }
-    else
-        editor = m_customEditor;
-
-    //
     // Maybe override editor if common value specified
     if ( GetDisplayedCommonValueCount() )
     {
@@ -2148,7 +2192,6 @@ bool wxPGProperty::RecreateEditor()
 
 void wxPGProperty::SetValueImage( wxBitmap& bmp )
 {
-    // We need PG to obtain default image size
     wxCHECK_RET( GetGrid(),
                  wxS("Cannot set image for detached property") );
 
@@ -2156,42 +2199,7 @@ void wxPGProperty::SetValueImage( wxBitmap& bmp )
 
     if ( bmp.IsOk() )
     {
-        // Resize the image
-        wxSize maxSz = GetGrid()->GetImageSize();
-        wxSize imSz = bmp.GetSize();
-
-        if ( imSz.y != maxSz.y )
-        {
-#if wxUSE_IMAGE
-            // Here we use high-quality wxImage scaling functions available
-            wxImage img = bmp.ConvertToImage();
-            double scaleY = (double)maxSz.y / (double)imSz.y;
-            img.Rescale(wxRound(bmp.GetWidth()*scaleY),
-                        wxRound(bmp.GetHeight()*scaleY),
-                        wxIMAGE_QUALITY_HIGH);
-            wxBitmap* bmpNew = new wxBitmap(img);
-#else // !wxUSE_IMAGE
-            // This is the old, deprecated method of scaling the image
-            wxBitmap* bmpNew = new wxBitmap(maxSz.x,maxSz.y,bmp.GetDepth());
-#if defined(__WXMSW__) || defined(__WXOSX__)
-            // wxBitmap::UseAlpha() is used only on wxMSW and wxOSX.
-            bmpNew->UseAlpha(bmp.HasAlpha());
-#endif // __WXMSW__ || __WXOSX__
-            {
-                wxMemoryDC dc(*bmpNew);
-                double scaleY = (double)maxSz.y / (double)imSz.y;
-                dc.SetUserScale(scaleY, scaleY);
-                dc.DrawBitmap(bmp, 0, 0);
-            }
-#endif // wxUSE_IMAGE/!wxUSE_IMAGE
-
-            m_valueBitmap = bmpNew;
-        }
-        else
-        {
-            m_valueBitmap = new wxBitmap(bmp);
-        }
-
+        m_valueBitmap = new wxBitmap(bmp);
         m_flags |= wxPG_PROP_CUSTOMIMAGE;
     }
     else

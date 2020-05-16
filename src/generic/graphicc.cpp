@@ -20,9 +20,11 @@
 
 #if wxUSE_CAIRO
 
+#ifndef __WXGTK20__
 // keep cairo.h from defining dllimport as we're defining the symbols inside
 // the wx dll in order to load them dynamically.
 #define cairo_public
+#endif
 
 #include <cairo.h>
 #include <float.h>
@@ -63,7 +65,6 @@ using namespace std;
 // wxGraphicsPath implementation
 //-----------------------------------------------------------------------------
 
-#include <cairo.h>
 #ifdef __WXMSW__
 // TODO remove this dependency (gdiplus needs the macros)
 
@@ -1020,7 +1021,7 @@ void wxCairoPenData::Apply( wxGraphicsContext* context )
     cairo_set_line_width(ctext,m_width);
     cairo_set_line_cap(ctext,m_cap);
     cairo_set_line_join(ctext,m_join);
-    cairo_set_dash(ctext,(double*)m_lengths,m_count,0.0);
+    cairo_set_dash(ctext, m_lengths, m_count, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -1504,7 +1505,7 @@ void wxCairoMatrixData::TransformDistance( wxDouble *dx, wxDouble *dy ) const
 // returns the native representation
 void * wxCairoMatrixData::GetNativeMatrix() const
 {
-    return (void*) &m_matrix;
+    return const_cast<cairo_matrix_t*>(&m_matrix);
 }
 
 // ----------------------------------------------------------------------------
@@ -1954,7 +1955,7 @@ wxCairoContext::wxCairoContext( wxGraphicsRenderer* renderer, const wxWindowDC& 
     cairo_t* cr = static_cast<cairo_t*>(dc.GetImpl()->GetCairoContext());
     Init(cr ? cairo_reference(cr) : NULL);
 #elif defined __WXGTK20__
-    wxGTKDCImpl *impldc = (wxGTKDCImpl*) dc.GetImpl();
+    const wxGTKDCImpl* impldc = static_cast<const wxGTKDCImpl*>(dc.GetImpl());
     Init( gdk_cairo_create( impldc->GetGDKWindow() ) );
 
     // Transfer transformation settings from source DC to Cairo context on our own.
@@ -2167,7 +2168,7 @@ wxCairoContext::wxCairoContext( wxGraphicsRenderer* renderer, const wxMemoryDC& 
     cairo_t* cr = static_cast<cairo_t*>(dc.GetImpl()->GetCairoContext());
     Init(cr ? cairo_reference(cr) : NULL);
 #elif defined __WXGTK20__
-    wxGTKDCImpl *impldc = (wxGTKDCImpl*) dc.GetImpl();
+    const wxGTKDCImpl* impldc = static_cast<const wxGTKDCImpl*>(dc.GetImpl());
     Init( gdk_cairo_create( impldc->GetGDKWindow() ) );
 
     // Transfer transformation settings from source DC to Cairo context on our own.

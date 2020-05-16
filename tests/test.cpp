@@ -135,7 +135,11 @@ static void TestAssertHandler(const wxString& file,
         // so we'd just die without any useful information -- abort instead.
         abortReason << assertMessage << "in a worker thread.";
     }
+#if __cplusplus >= 201703L || wxCHECK_VISUALC_VERSION(14)
+    else if ( uncaught_exceptions() )
+#else
     else if ( uncaught_exception() )
+#endif
     {
         // Throwing while already handling an exception would result in
         // terminate() being called and we wouldn't get any useful information
@@ -418,6 +422,20 @@ extern bool IsRunningUnderXVFB()
     return s_isRunningUnderXVFB == 1;
 }
 
+#ifdef __LINUX__
+
+extern bool IsRunningInLXC()
+{
+    // We're supposed to be able to detect running in LXC by checking for
+    // /dev/lxd existency, but this doesn't work under Travis for some reason,
+    // so just rely on having the environment variable defined for the
+    // corresponding builds in our .travis.yml.
+    wxString value;
+    return wxGetEnv("wxLXC", &value) && value == "1";
+}
+
+#endif // __LINUX__
+
 #if wxUSE_GUI
 
 bool EnableUITests()
@@ -440,11 +458,11 @@ bool EnableUITests()
 
         if ( s_enabled == -1 )
         {
-#ifdef __WXMSW__
+#if defined(__WXMSW__) || defined(__WXGTK__)
             s_enabled = 1;
-#else // !__WXMSW__
+#else // !(__WXMSW__ || __WXGTK__)
             s_enabled = 0;
-#endif // __WXMSW__/!__WXMSW__
+#endif // (__WXMSW__ || __WXGTK__)
         }
     }
 

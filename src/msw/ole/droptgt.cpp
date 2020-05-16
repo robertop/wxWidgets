@@ -371,9 +371,6 @@ STDMETHODIMP wxIDropTarget::Drop(IDataObject *pIDataSource,
             wxLogLastError(wxT("ScreenToClient"));
         }
 
-        // Initialize it to a safe value in case OnDrop() throws.
-        *pdwEffect = DROPEFFECT_NONE;
-
         // Create a guard that will clean things up in case of exception: we
         // must perform it in any case, as if we don't update the drag image it
         // would remain on screen under Windows 10, see #18499.
@@ -386,8 +383,8 @@ STDMETHODIMP wxIDropTarget::Drop(IDataObject *pIDataSource,
                         DWORD* pdwEffect)
                 : m_pIDataObject(pIDataObject),
                   m_pTarget(pTarget),
-                  m_pt(pt),
-                  m_pdwEffect(pdwEffect)
+                  m_pdwEffect(pdwEffect),
+                  m_pt(pt)
             {
             }
 

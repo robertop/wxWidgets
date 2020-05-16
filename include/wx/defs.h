@@ -285,6 +285,26 @@ typedef short int WXTYPE;
     #define wxOVERRIDE
 #endif /*  HAVE_OVERRIDE */
 
+/* same for more C++11 keywords which don't have such historic baggage as
+   override and so can be detected by just testing for C++11 support (which
+   still requires handling MSVS specially, unfortunately) */
+#if __cplusplus >= 201103L || wxCHECK_VISUALC_VERSION(14)
+    #define wxHAS_MEMBER_DEFAULT
+
+    #define wxHAS_NOEXCEPT
+    #define wxNOEXCEPT noexcept
+#else
+    #define wxNOEXCEPT
+#endif
+
+/*
+    Support for nullptr is available since MSVS 2010, even though it doesn't
+    define __cplusplus as a C++11 compiler.
+ */
+#if __cplusplus >= 201103 || wxCHECK_VISUALC_VERSION(10)
+    #define wxHAS_NULLPTR_T
+#endif
+
 /* wxFALLTHROUGH is used to notate explicit fallthroughs in switch statements */
 
 #if __cplusplus >= 201703L
@@ -1917,17 +1937,9 @@ enum wxStandardID
 /*  wxWindowID type                                                              */
 /*  ---------------------------------------------------------------------------- */
 
-/*
- * wxWindowID used to be just a typedef defined here, now it's a class, but we
- * still continue to define it here for compatibility, so that the code using
- * it continues to compile even if it includes just wx/defs.h.
- *
- * Notice that wx/windowid.h can only be included after wxID_XYZ definitions
- * (as it uses them).
- */
-#if defined(__cplusplus) && wxUSE_GUI
-    #include "wx/windowid.h"
-#endif
+/* Note that this is defined even in non-GUI code as the same type is also used
+   for e.g. timer IDs. */
+typedef int wxWindowID;
 
 /*  ---------------------------------------------------------------------------- */
 /*  other constants */
@@ -2986,7 +2998,7 @@ typedef const void* WXWidget;
 /*  macros to define a class without copy ctor nor assignment operator */
 /*  --------------------------------------------------------------------------- */
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if defined(__cplusplus) && (__cplusplus >= 201103L || wxCHECK_VISUALC_VERSION(14))
     #define wxMEMBER_DELETE = delete
 #else
     #define wxMEMBER_DELETE

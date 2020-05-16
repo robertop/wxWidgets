@@ -5,6 +5,7 @@ Creating a new release requires a few things before getting started:
 * Linux (or another Unix but GNU tar is required).
 * Windows 7+ with HTML Help Workshop, and Inno Setup installed.
 * 7-Zip, Doxygen 1.8.8, and GraphViz installed on both machines.
+* [Bakefile 0.2.12](https://bakefile.org/) installed on the linux machine.
 
 Unless mentioned otherwise, all steps should be run on Linux or OSX so that the
 repository export used for the release is primarily using LF line endings. Files
@@ -47,9 +48,14 @@ and then run it using the new DLLs.
 ## Pre-Release Steps
 
 1. Perform the following steps. You can run `build/tools/pre-release.sh` to do
-   the straightforward changes like updating the date and version number
+   the straightforward changes like updating the dates and checksums
    automatically, but please also review and update the contents of the README
    and announcement text.
+
+   The Post-Release step of the previous release will have updated
+   the micro version of this release. If this release represents a major
+   or minor release, these changes will have to be performed manually at
+   this point.
 
    Note that the best order depends on the release being prepared: for a
    development release, `docs/publicity/announce.txt` contains the list of the
@@ -67,7 +73,18 @@ and then run it using the new DLLs.
     * Update `docs/msw/binaries.md`: at least the version, but possibly also
       the list of supported compilers.
 
-2. Commit the changes and tag the release using your GPG key:
+2. For micro releases, review the changelog to determine if any ABI changes
+   have been made. If so, or if this is a major or minor release, update
+   the C:R:A settings in `build/tools/version.bkl`. Then from the
+   `build/bakesfiles` directory run
+
+        bakefile_gen
+
+   and from the root directory run
+
+        autoconf -B build/autoconf_prepend-include
+
+3. Commit the changes and tag the release using your GPG key:
 
     git tag -s -m 'Tag X.Y.Z release' vX.Y.Z
 
@@ -123,20 +140,54 @@ Attach the following files to it:
     wxWidgets-x.y.z-docs-html.zip
     wxWidgets-x.y.z-headers.7z
 
-Create https://docs.wxwidgets.org/x.y.z/ (ask Bryan to do it if not done yet).
+## Update documentation
+
+This requires being able to ssh to docs.wxwidgets.org, please ask Bryan if you
+think you should be able to do it, but can't.
+
+Once logged in, run `~/update-trunk-docs.sh` script to update files in
+`public_html/trunk` directory, copy its contents to `public_html/x.y.z`, switch
+any links, such as `3.1` to point to `x.y.z` by doing
+
+    $ cd ~/public_html
+    $ ln -sfn 3.y.z 3.y
+
+and edit `~/public_html/index.md` to add the link to the new release to it.
+
+If the docs must be generated from the tag itself, and not from master, note
+that you need to apply the special commit which is always the tip of master
+branch in `~/wxWidgets` git repository on this machine.
+
+E.g. to create documentation for `v3.0.z` release:
+
+    $ cd ~/wxWidgets
+    $ git fetch --tags
+    $ git checkout -b my-tmp-branch v3.0.z
+    $ git cherry-pick master
+    $ vi docs/doxygen/Doxyfile
+    ... edit HTML_OUTPUT to create files in ~/public_html/3.0.z
+    $ cd docs/doxygen
+    $ PATH="$HOME/doxygen/bin:$PATH" WX_SKIP_DOXYGEN_VERSION_CHECK=1 nice -n 15 ./regen.sh php
+
+    # Cleanup
+    $ git reset --hard master
+    $ git checkout master
+    $ git branch -d my-tmp-branch
 
 ## Announcement
 
 Update https://www.wxwidgets.org:
 * Update release information (at least `version` and `released`) in `_data/relases.yml`.
-* Download information can then be updated by running `update_release_info.rb`.
-  This will update the asset information from GitHub.
 * Update the list of compilers used for making MSW binaries in
   `downloads/index.md` if necessary (note that there is no need to update
   anything else, the page will dynamically show the release files with the
   specified prefixes).
 * Add a news item. Usually a news item is enough but something
   more can be called for for major releases
+* Push the changes (or create the PR with them) to GitHub. Note that this will
+  trigger the site rebuild which will fail if the release statistics are not
+  available yet, so make sure to publish the release on GitHub first (or wait
+  an hour for the next scheduled site rebuild to happen).
 
 Post `docs/publicity/announce.txt` at least to wx-announce@googlegroups.com and
 to wx-users.
@@ -148,22 +199,30 @@ Submit to https://isocpp.org/blog/suggest (need to be logged in to do it).
 
 For major releases, submit the announcement to https://slashdot.org/submission
 
-## Version Updates
+## Post-Release Steps
 
-Trac: mark the milestone corresponding to the release as completed and add a
-new version for it to allow reporting bugs against it and create the next
-milestone (ask Vadim or Robin to do it or to get admin password).
+* Trac: mark the milestone corresponding to the release as completed and
+add a new version for it to allow reporting bugs against it and create the
+next milestone (ask Vadim or Robin to do it or to get admin password).
 
-Update the roadmap at https://trac.wxwidgets.org/wiki/Roadmap to at least
-mention the new release there.
+* Update the roadmap at https://trac.wxwidgets.org/wiki/Roadmap to at
+least mention the new release there.
 
-Increase the version for the next release at https://trac.wxwidgets.org/wiki/Queries
-in "Tickets to be fixed for the next release".
+* Increase the version for the next release at
+https://trac.wxwidgets.org/wiki/Queries in "Tickets to be fixed for the
+next release".
 
-Run `misc/scripts/inc_release` to increment micro version, i.e. replace x.y.z
-with x.y.z+1 (minor or major versions updates require manual intervention)
-and rerun both `bakefile_gen` and `autoconf` afterwards to update the version
-in the generated files too.
+* Run `misc/scripts/inc_release` to increment micro version,
+i.e. replace x.y.z with x.y.z+1.
+
+* Update the C:R:A settings in build/tools/version.bkl to C:R+1:A.
+Then from the build/bakesfiles directory run
+
+        bakefile_gen
+
+and from the root directory run
+
+        autoconf -B build/autoconf_prepend-include
 
 ## MSW Visual Studio Official Builds
 

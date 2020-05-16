@@ -1155,6 +1155,7 @@ public:
 
     const wxPGCommonValue* GetCommonValue( unsigned int i ) const
     {
+        wxCHECK_MSG( i < m_commonValues.size(), NULL, "Invalid item index" );
         return m_commonValues[i];
     }
 
@@ -1167,7 +1168,7 @@ public:
     // Returns label of given common value.
     wxString GetCommonValueLabel( unsigned int i ) const
     {
-        wxASSERT( GetCommonValue(i) );
+        wxCHECK_MSG( i < m_commonValues.size(), wxString(), "Invalid item index" );
         return GetCommonValue(i)->GetLabel();
     }
 
@@ -1233,6 +1234,9 @@ public:
 
     // Checks system screen design used for laying out various dialogs.
     static bool IsSmallScreen();
+
+    // Returns rescaled bitmap
+    static wxBitmap RescaleBitmap(const wxBitmap& srcBmp, double scaleX, double scaleY);
 
     // Returns rectangle that fully contains properties between and including
     // p1 and p2. Rectangle is in virtual scrolled window coordinates.

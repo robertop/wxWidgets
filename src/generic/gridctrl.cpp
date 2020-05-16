@@ -32,6 +32,7 @@
 #include "wx/renderer.h"
 
 #include "wx/generic/private/grid.h"
+#include "wx/private/window.h"
 
 // ----------------------------------------------------------------------------
 // wxGridCellRenderer
@@ -591,7 +592,7 @@ void wxGridCellStringRenderer::Draw(wxGrid& grid,
     // erase only this cells background, overflow cells should have been erased
     wxGridCellRenderer::Draw(grid, attr, dc, rectCell, row, col, isSelected);
 
-    if (attr.GetOverflow())
+    if ( attr.CanOverflow() )
     {
         int hAlign, vAlign;
         attr.GetAlignment(&hAlign, &vAlign);
@@ -650,6 +651,10 @@ void wxGridCellStringRenderer::Draw(wxGrid& grid,
                 col_end = grid.GetNumberCols() - 1;
             for (int i = col + cell_cols; i <= col_end; i++)
             {
+                // redraw the cell to update the background
+                wxGridCellCoords coords(row, i);
+                grid.DrawCell(dc, coords);
+
                 clip.width = grid.GetColSize(i) - 1;
                 wxDCClipper clipper(dc, clip);
 
@@ -916,22 +921,25 @@ void wxGridCellFloatRenderer::SetParameters(const wxString& params)
 // wxGridCellBoolRenderer
 // ----------------------------------------------------------------------------
 
-wxSize wxGridCellBoolRenderer::ms_sizeCheckMark;
-
 wxSize wxGridCellBoolRenderer::GetBestSize(wxGrid& grid,
                                            wxGridCellAttr& WXUNUSED(attr),
                                            wxDC& WXUNUSED(dc),
                                            int WXUNUSED(row),
                                            int WXUNUSED(col))
 {
-    // compute it only once (no locks for MT safeness in GUI thread...)
-    if ( !ms_sizeCheckMark.x )
+    static wxPrivate::DpiDependentValue<wxSize> s_sizeCheckMark;
+
+    // Get the check mark size in pixels if it hadn't been done yet or if the
+    // DPI has changed.
+    if ( s_sizeCheckMark.HasChanged(&grid) )
     {
-        ms_sizeCheckMark =
-            wxRendererNative::Get().GetCheckBoxSize(&grid, wxCONTROL_CELL);
+        s_sizeCheckMark.SetAtNewDPI
+            (
+                wxRendererNative::Get().GetCheckBoxSize(&grid, wxCONTROL_CELL)
+            );
     }
 
-    return ms_sizeCheckMark;
+    return s_sizeCheckMark.Get();
 }
 
 void wxGridCellBoolRenderer::Draw(wxGrid& grid,

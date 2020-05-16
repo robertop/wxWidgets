@@ -27,6 +27,7 @@
 #include "wx/intl.h"
 
 #include "wx/validate.h"        // for wxDefaultValidator (always include it)
+#include "wx/windowid.h"
 
 #if wxUSE_PALETTE
     #include "wx/palette.h"
@@ -1032,7 +1033,7 @@ public:
 
         // does this window have the capture?
     virtual bool HasCapture() const
-        { return (wxWindow *)this == GetCapture(); }
+        { return reinterpret_cast<const wxWindow*>(this) == GetCapture(); }
 
         // enable the specified touch events for this window, return false if
         // the requested events are not supported
@@ -2073,7 +2074,7 @@ extern WXDLLIMPEXP_CORE wxPoint wxGetMousePosition();
 extern WXDLLIMPEXP_CORE wxWindow *wxGetActiveWindow();
 
 // get the (first) top level parent window
-WXDLLIMPEXP_CORE wxWindow* wxGetTopLevelParent(wxWindow *win);
+WXDLLIMPEXP_CORE wxWindow* wxGetTopLevelParent(wxWindowBase *win);
 
 #if wxUSE_ACCESSIBILITY
 // ----------------------------------------------------------------------------

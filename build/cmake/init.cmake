@@ -8,6 +8,15 @@
 # Licence:     wxWindows licence
 #############################################################################
 
+if(DEFINED wxBUILD_CXX_STANDARD AND NOT wxBUILD_CXX_STANDARD STREQUAL COMPILER_DEFAULT)
+    set(CMAKE_CXX_STANDARD ${wxBUILD_CXX_STANDARD})
+endif()
+if(NOT CMAKE_CXX_STANDARD EQUAL 98)
+    set(wxHAS_CXX11 TRUE)
+else()
+    set(wxHAS_CXX11 FALSE)
+endif()
+
 if(MSVC)
     # Determine MSVC runtime library flag
     set(MSVC_LIB_USE "/MD")
@@ -118,6 +127,11 @@ if(NOT wxBUILD_SHARED)
     wx_string_append(wxBUILD_FILE_ID "-static")
 endif()
 wx_string_append(wxBUILD_FILE_ID "-${wxMAJOR_VERSION}.${wxMINOR_VERSION}")
+if(wxBUILD_FLAVOUR)
+    set(lib_flavour ${wxBUILD_FLAVOUR})
+    string(REPLACE "-" "_" lib_flavour ${lib_flavour})
+    wx_string_append(wxBUILD_FILE_ID "-${lib_flavour}")
+endif()
 
 set(wxARCH_SUFFIX)
 
@@ -140,19 +154,15 @@ else()
     set(wxCOMPILER_PREFIX)
 endif()
 
-if(MSVC OR MINGW)
+if(MSVC)
     if(wxBUILD_SHARED)
         set(lib_suffix "dll")
     else()
         set(lib_suffix "lib")
     endif()
 
-    if(MSVC)
-        # Include generator expression to suppress default Debug/Release pair
-        set(wxPLATFORM_LIB_DIR "$<1:/>${wxCOMPILER_PREFIX}${wxARCH_SUFFIX}_${lib_suffix}")
-    else()
-        set(wxPLATFORM_LIB_DIR "/${wxCOMPILER_PREFIX}${wxARCH_SUFFIX}_${lib_suffix}")
-    endif()
+    # Include generator expression to suppress default Debug/Release pair
+    set(wxPLATFORM_LIB_DIR "$<1:/>${wxCOMPILER_PREFIX}${wxARCH_SUFFIX}_${lib_suffix}")
 else()
     set(wxPLATFORM_LIB_DIR)
 endif()
@@ -164,7 +174,7 @@ if(wxBUILD_CUSTOM_SETUP_HEADER_PATH)
     set(wxSETUP_HEADER_PATH ${wxBUILD_CUSTOM_SETUP_HEADER_PATH})
 else()
     # Set path where setup.h will be created
-    if(MSVC OR MINGW)
+    if(MSVC)
         if(wxUSE_UNICODE)
             set(lib_unicode u)
         else()

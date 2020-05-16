@@ -15,7 +15,6 @@
 // headers
 // ----------------------------------------------------------------------------
 
-#include "wx/windowid.h"
 #include "wx/object.h"
 #include "wx/list.h"
 #include "wx/filefn.h"
@@ -840,7 +839,7 @@ WXDLLIMPEXP_CORE bool wxYieldIfNeeded();
                        size_t *outLen,
                        const wxString& resourceName,
                        const wxChar* resourceType = wxUserResourceStr,
-                       WXHINSTANCE module = 0);
+                       WXHINSTANCE module = NULL);
 
     // This function allocates a new buffer and makes a copy of the resource
     // data, remember to delete[] the buffer. And avoid using it entirely if
@@ -851,7 +850,7 @@ WXDLLIMPEXP_CORE bool wxYieldIfNeeded();
     wxLoadUserResource(const wxString& resourceName,
                        const wxChar* resourceType = wxUserResourceStr,
                        int* pLen = NULL,
-                       WXHINSTANCE module = 0);
+                       WXHINSTANCE module = NULL);
 #endif // __WINDOWS__
 
 #endif

@@ -163,12 +163,13 @@ protected:
     wxGrid *GetOwner() const { return static_cast<wxGrid *>(GetParent()); }
 
 private:
-    static wxMouseEvent GetDummyMouseEvent()
+    wxMouseEvent GetDummyMouseEvent() const
     {
         // make up a dummy event for the grid event to use -- unfortunately we
         // can't do anything else here
         wxMouseEvent e;
         e.SetState(wxGetMouseState());
+        GetOwner()->ScreenToClient(&e.m_x, &e.m_y);
         return e;
     }
 
@@ -251,24 +252,19 @@ private:
 
     void OnBeginResize(wxHeaderCtrlEvent& event)
     {
-        GetOwner()->DoStartResizeCol(event.GetColumn());
+        GetOwner()->DoHeaderStartDragResizeCol(event.GetColumn());
 
         event.Skip();
     }
 
     void OnResizing(wxHeaderCtrlEvent& event)
     {
-        GetOwner()->DoUpdateResizeColWidth(event.GetWidth());
+        GetOwner()->DoHeaderDragResizeCol(event.GetWidth());
     }
 
     void OnEndResize(wxHeaderCtrlEvent& event)
     {
-        // we again need to pass a mouse event to be used for the grid event
-        // generation but we don't have it here so use a dummy one as in
-        // UpdateColumnVisibility()
-        wxMouseEvent e;
-        e.SetState(wxGetMouseState());
-        GetOwner()->DoEndDragResizeCol(e);
+        GetOwner()->DoHeaderEndDragResizeCol(event.GetWidth());
 
         event.Skip();
     }
@@ -347,7 +343,7 @@ public:
     {
     }
 
-    virtual bool IsFrozen() const { return true; }
+    virtual bool IsFrozen() const wxOVERRIDE { return true; }
 };
 
 
@@ -379,7 +375,7 @@ public:
     {
     }
 
-    virtual bool IsFrozen() const { return true; }
+    virtual bool IsFrozen() const wxOVERRIDE { return true; }
 };
 
 
@@ -419,6 +415,7 @@ public:
                           "GridWindow"),
           m_type(type)
     {
+        SetBackgroundStyle(wxBG_STYLE_PAINT);
     }
 
 
@@ -437,7 +434,6 @@ private:
     void OnKeyDown( wxKeyEvent& );
     void OnKeyUp( wxKeyEvent& );
     void OnChar( wxKeyEvent& );
-    void OnEraseBackground( wxEraseEvent& );
     void OnFocus( wxFocusEvent& );
 
     wxDECLARE_EVENT_TABLE();
@@ -797,8 +793,36 @@ public:
     // boundary, i.e. is the first/last row/column
     virtual bool IsAtBoundary(const wxGridCellCoords& coords) const = 0;
 
+    // Check if the component of this point in our direction is
+    // valid, i.e. not -1
+    bool IsValid(const wxGridCellCoords& coords) const
+    {
+        return m_oper.Select(coords) != -1;
+    }
+
+    // Make the coordinates with the other component value of -1.
+    wxGridCellCoords MakeWholeLineCoords(const wxGridCellCoords& coords) const
+    {
+        return m_oper.MakeCoords(m_oper.Select(coords), -1);
+    }
+
     // Increment the component of this point in our direction
+    //
+    // Note that this can't be called if IsAtBoundary() is true, use
+    // TryToAdvance() if this might be the case.
     virtual void Advance(wxGridCellCoords& coords) const = 0;
+
+    // Try to advance in our direction, return true if succeeded or false
+    // otherwise, i.e. if the coordinates are already at the grid boundary.
+    bool TryToAdvance(wxGridCellCoords& coords) const
+    {
+        if ( IsAtBoundary(coords) )
+            return false;
+
+        Advance(coords);
+
+        return true;
+    }
 
     // Find the line at the given distance, in pixels, away from this one
     // (this uses clipping, i.e. anything after the last line is counted as the
